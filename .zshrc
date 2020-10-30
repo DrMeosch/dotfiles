@@ -10,10 +10,6 @@ ZSH_THEME="powerlevel10k/powerlevel10k"
 ZSH_DISABLE_COMPFIX="true"
 
 plugins=(
-  git
-  github
-  z
-  autojump
   archlinux
   ansible
   aws
@@ -154,3 +150,5 @@ c()
 # added by travis gem
 [ ! -s $HOME/.travis/travis.sh ] || source $HOME/.travis/travis.sh
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+
+zstyle ':completion:*' menu select
