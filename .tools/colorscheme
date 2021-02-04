@@ -1,0 +1,59 @@
+#!/bin/sh
+
+color=$1
+
+configure_alacritty() {
+  cat ~/.config/alacritty/base.yml ~/.config/alacritty/${color}.yml > ~/.config/alacritty/alacritty.yml
+}
+
+configure_vim() {
+  echo $1 > ~/.config/nvim/color.vim
+}
+
+case $color in
+  dracula)
+    configure_alacritty
+    configure_vim 'colorscheme dracula'
+    ;;
+  nord)
+    configure_alacritty
+    configure_vim 'colorscheme nord'
+    ;;
+  pink-moon)
+    configure_alacritty
+    configure_vim 'colorscheme pink-moon'
+    ;;
+  ayu-light)
+    # TODO: Add dark and mirage.
+    configure_alacritty
+    configure_vim 'let ayucolor="light"\ncolorscheme ayu'
+    ;;
+  seoul256)
+    configure_alacritty
+    configure_vim 'colorscheme seoul256\nlet g:airline_theme="seoul256"'
+    ;;
+  seoul256-light)
+    configure_alacritty
+    configure_vim 'let g:seoul256_background=255\ncolorscheme seoul256-light\nlet g:airline_theme="seoul256"'
+    ;;
+  firewatch)
+    configure_alacritty
+    configure_vim 'set background=dark\ncolorscheme two-firewatch\nlet g:airline_theme="twofirewatch"'
+    ;;
+  firewatch-light)
+    configure_alacritty
+    configure_vim 'set background=light\ncolorscheme two-firewatch\nlet g:airline_theme="twofirewatch"'
+    ;;
+  night-owl)
+    configure_alacritty
+    configure_vim 'colorscheme night-owl'
+    ;;
+  gruvbox)
+    configure_alacritty
+    configure_vim 'set background=light\ncolorscheme gruvbox\nlet g:gruvbox_contrast_light="medium"'
+    ;;
+  *)
+    echo "Supported colorschemes: dracula, nord, pink-moon, ayu-light, seoul256, seoul256-light, firewatch, firewatch-light, night-owl, gruvbox"
+    exit 1
+    ;;
+esac
