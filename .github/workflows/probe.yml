@@ -13,7 +13,6 @@ jobs:
           Get-ComputerInfo | Select-Object HyperVisorPresent,HyperVRequirementVirtualizationFirmwareEnabled,HyperVRequirementVMMonitorModeExtensions,HyperVRequirementSecondLevelAddressTranslation
           wsl --version
           wsl --status
-          Get-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform,Microsoft-Windows-Subsystem-Linux | Format-Table
       - name: Try WSL2 via setup-wsl
         uses: Vampire/setup-wsl@v6
         with:
