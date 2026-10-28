@@ -231,13 +231,13 @@ function Invoke-WinGetConfiguration([string]$File) {
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
         throw "winget not found. Install 'App Installer' from the Microsoft Store, then run this script again."
     }
-    $common = @('--file', $File, '--disable-interactivity')
+    $common = @('--file', $File, '--disable-interactivity', '--accept-configuration-agreements')
     & winget configure test @common
     if ($LASTEXITCODE -eq 0) {
         Write-Host "WinGet configuration already in the desired state"
         return
     }
-    & winget configure @common --accept-configuration-agreements
+    & winget configure @common
     if ($LASTEXITCODE -ne 0) { throw "winget configure failed (exit code $LASTEXITCODE)" }
     & winget configure test @common
     if ($LASTEXITCODE -ne 0) { throw "winget configure test still fails after applying (exit code $LASTEXITCODE)" }

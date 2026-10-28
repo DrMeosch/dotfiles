@@ -280,7 +280,7 @@ jobs:
       # Not applied yet, so win32yank is missing and the test must say so.
       - name: winget configure test (before setup, must fail)
         run: |
-          winget configure test --file "$env:USERPROFILE\.dotfiles-windows\configuration.winget" --disable-interactivity
+          winget configure test --file "$env:USERPROFILE\.dotfiles-windows\configuration.winget" --disable-interactivity --accept-configuration-agreements
           if ($LASTEXITCODE -eq 0) { throw "winget configure test passed before anything was applied" }
           Write-Host "not in the desired state yet, as expected (exit code $LASTEXITCODE)"
           $global:LASTEXITCODE = 0
@@ -355,7 +355,7 @@ jobs:
           # win32yank is installed (by winget configure) and the configuration now tests clean.
           winget list --id equalsraf.win32yank --exact --accept-source-agreements --disable-interactivity
           if ($LASTEXITCODE -ne 0) { throw "win32yank is not installed" }
-          winget configure test --file "$src\configuration.winget" --disable-interactivity
+          winget configure test --file "$src\configuration.winget" --disable-interactivity --accept-configuration-agreements
           if ($LASTEXITCODE -ne 0) { throw "winget configure test fails after setup.ps1" }
 
           # The Windows Terminal fragment is where Windows Terminal looks for it, and is a real file.
