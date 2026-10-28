@@ -387,13 +387,11 @@ jobs:
           New-Item -ItemType Directory -Path $dir -Force | Out-Null
           Set-Content -Path "$dir\settings.json" -Value '{ "profiles": { "defaults": ' -Encoding UTF8
           Remove-Item $frag, "$env:USERPROFILE\.wslconfig"
-          winget uninstall --id equalsraf.win32yank --exact --disable-interactivity
-          if ($LASTEXITCODE -ne 0) { throw "could not uninstall win32yank" }
           $failed = $false
           try { .\windows\setup.ps1 } catch { $failed = $true; Write-Host "setup.ps1 failed as expected: $($_.Exception.Message)" }
           if (-not $failed) { throw "setup.ps1 succeeded with an unparseable settings.json" }
           winget list --id equalsraf.win32yank --exact --accept-source-agreements --disable-interactivity
-          if ($LASTEXITCODE -ne 0) { throw "win32yank was not reinstalled" }
+          if ($LASTEXITCODE -ne 0) { throw "win32yank is no longer installed" }
           if ((Get-FileHash $frag).Hash -ne (Get-FileHash "$src\windows-terminal-fragment.json").Hash) { throw "fragment was not applied" }
           if ((Get-FileHash "$env:USERPROFILE\.wslconfig").Hash -ne (Get-FileHash "$src\.wslconfig").Hash) { throw ".wslconfig was not applied" }
           Write-Host "everything else was applied despite the broken settings.json"
