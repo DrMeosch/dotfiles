@@ -1,0 +1,42 @@
+# pink-moon theme (converted from Alacritty YAML to TOML)
+[colors.primary]
+background = "#2A2E38"
+foreground = "#F0FDFF"
+
+[colors.normal]
+black = "#2A2E38"
+red = "#D08785"
+green = "#6F98B3"
+yellow = "#FDF8CE"
+blue = "#A6B8CC"
+magenta = "#FCDBD9"
+cyan = "#FFD17F"
+white = "#F0FDFF"
+
+[colors.bright]
+black = "#71798A"
+red = "#FF3334"
+green = "#9EC400"
+yellow = "#E7C547"
+blue = "#7AA6DA"
+magenta = "#B77EE0"
+cyan = "#54CED6"
+white = "#FFFFFF"
+
+[colors.dim]
+black = "#333333"
+red = "#F2777A"
+green = "#99CC99"
+yellow = "#FFCC66"
+blue = "#6699CC"
+magenta = "#CC99CC"
+cyan = "#66CCCC"
+white = "#DDDDDD"
+
+[colors.cursor]
+text = "#2A2E38"
+cursor = "#FFD17F"
+
+[colors.selection]
+text = "#2A2E38"
+cursor = "#F0FDFF"

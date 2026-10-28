@@ -1,0 +1,28 @@
+# seoul256-light theme (converted from Alacritty YAML to TOML)
+[colors.primary]
+background = "#F0F0F0"
+foreground = "#4E4E4E"
+
+[colors.cursor]
+text = "#DADADA"
+cursor = "#4E4E4E"
+
+[colors.normal]
+black = "#4E4E4E"
+red = "#AF5F5F"
+green = "#5F885F"
+yellow = "#AF8760"
+blue = "#5F87AE"
+magenta = "#875F87"
+cyan = "#5F8787"
+white = "#E4E4E4"
+
+[colors.bright]
+black = "#3A3A3A"
+red = "#870100"
+green = "#005F00"
+yellow = "#D8865F"
+blue = "#0087AF"
+magenta = "#87025F"
+cyan = "#008787"
+white = "#EEEEEE"

@@ -1,0 +1,28 @@
+# night-owl theme (converted from Alacritty YAML to TOML)
+[colors.primary]
+background = "#011627"
+foreground = "#D6DEEB"
+
+[colors.cursor]
+text = "#FFFFFF"
+cursor = "#7E57C2"
+
+[colors.normal]
+black = "#000000"
+red = "#EF5350"
+green = "#22DA6E"
+yellow = "#ADDB67"
+blue = "#82AAFF"
+magenta = "#C792EA"
+cyan = "#21C7A8"
+white = "#FFFFFF"
+
+[colors.bright]
+black = "#575656"
+red = "#EF5350"
+green = "#22DA6E"
+yellow = "#FFEB95"
+blue = "#82AAFF"
+magenta = "#C792EA"
+cyan = "#7FDBCA"
+white = "#FFFFFF"

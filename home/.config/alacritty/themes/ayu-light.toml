@@ -1,0 +1,28 @@
+# ayu-light theme (converted from Alacritty YAML to TOML)
+[colors.primary]
+background = "#FAFAFA"
+foreground = "#5C6773"
+
+[colors.cursor]
+text = "#5C6773"
+cursor = "#FF6A00"
+
+[colors.normal]
+black = "#000000"
+red = "#FF3333"
+green = "#86B300"
+yellow = "#F29718"
+blue = "#41A6D9"
+magenta = "#F07178"
+cyan = "#4DBF99"
+white = "#FFFFFF"
+
+[colors.bright]
+black = "#323232"
+red = "#FF6565"
+green = "#B8E532"
+yellow = "#FFC94A"
+blue = "#73D8FF"
+magenta = "#FFA3AA"
+cyan = "#7FF1CB"
+white = "#FFFFFF"

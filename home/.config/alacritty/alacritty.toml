@@ -1,0 +1,39 @@
+# Alacritty configuration (Linux: Arch / Ubuntu / WSL2)
+# Managed by the dotfiles repo; edit this file in place and it takes effect
+# on the next Alacritty launch (no rebuild needed - it is symlinked out of the store).
+
+# Active color theme. Swap this line for any file in themes/ (dracula, nord,
+# gruvbox, night-owl, pink-moon, seoul256, ayu-light, firewatch, ...).
+general.import = ["~/.config/alacritty/themes/rose-pine-moon.toml"]
+
+[font]
+size = 13.0
+normal = { family = "Hack Nerd Font", style = "Regular" }
+bold = { family = "Hack Nerd Font", style = "Bold" }
+italic = { family = "Hack Nerd Font", style = "Italic" }
+
+[window]
+# Match the base repo's dimmed, slightly transparent look.
+opacity = 0.95
+decorations = "none"
+dynamic_title = true
+padding = { x = 6, y = 6 }
+
+[scrolling]
+history = 50000
+multiplier = 3
+
+[colors]
+draw_bold_text_with_bright_colors = true
+
+[bell]
+duration = 0
+
+[cursor]
+style = { shape = "Block", blinking = "Off" }
+
+# Alacritty does not run a login shell that auto-attaches tmux by default.
+# If you want every window to land in tmux, uncomment the block below.
+# [terminal.shell]
+# program = "zsh"
+# args = ["-l", "-c", "tmux attach || tmux new"]

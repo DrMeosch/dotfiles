@@ -1,0 +1,10 @@
+# Nix build results
+result
+result-*
+
+# home-manager backup files from -b bak
+*.bak
+
+# Local, machine-specific, or secret overrides
+.credentials
+*.local.secret

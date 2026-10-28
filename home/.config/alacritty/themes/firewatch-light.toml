@@ -1,0 +1,28 @@
+# firewatch-light theme (converted from Alacritty YAML to TOML)
+[colors.primary]
+background = "#F8F6F2"
+foreground = "#75541B"
+
+[colors.cursor]
+text = "#D5DEFF"
+cursor = "#DA4181"
+
+[colors.normal]
+black = "#383A42"
+red = "#E45649"
+green = "#50A14F"
+yellow = "#C18401"
+blue = "#0184BC"
+magenta = "#A626A4"
+cyan = "#0997B3"
+white = "#FAFAFA"
+
+[colors.bright]
+black = "#4F525E"
+red = "#E06C75"
+green = "#98C379"
+yellow = "#E5C07B"
+blue = "#61AFEF"
+magenta = "#C678DD"
+cyan = "#56B6C2"
+white = "#FFFFFF"
