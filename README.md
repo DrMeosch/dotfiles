@@ -17,7 +17,7 @@ A `home-manager switch` builds:
 - **Multiplexer**: tmux (prefix `C-a`, vi keys) with plugins managed by [tpm](https://github.com/tmux-plugins/tpm), which the config clones and installs on first start (needs `git`)
 - **Editor**: [LazyVim](https://www.lazyvim.org/)-based Neovim config (lazy.nvim, neogit, vimwiki, devcontainer LSP, neovide settings)
 - **Terminal**: Alacritty with a collection of color themes (rose-pine moon by default) - desktop targets only
-- **CLI tools**: ripgrep, fd, fzf, jq, lazygit, git
+- **CLI tools**: ripgrep, fd, fzf, jq, lazygit, git, rustup, tree-sitter
 - **Agent configs**: one shared `AGENTS.md` for Claude / Codex / opencode, plus Claude and Pi settings
 - **Font**: Hack Nerd Font (desktop targets)
 
@@ -192,6 +192,17 @@ settings.user.email = "you@example.com";
 
 - **Arch / Ubuntu desktop**: import `gui.nix`, so you get Alacritty and the Hack Nerd Font. Set your terminal font to "Hack Nerd Font".
 - **WSL2 (Ubuntu or Arch)**: no local display, so no Alacritty/fonts. Set the font and colors in **Windows Terminal** on the host side. Neovim copies to the Windows clipboard via `win32yank`, which you install on the Windows side (`winget install equalsraf.win32yank`; it is not in nixpkgs for Linux); tmux copies via `clip.exe` through the tmux-yank plugin (it is on `PATH` whenever Windows interop is enabled - the default). For `wslview` as `$BROWSER`, `sudo apt install wslu` and uncomment the line in `home/wsl.nix`.
+
+## Rust
+
+`rustup` is installed on every target and owns the toolchain (`cargo`, `rustc`, `rust-analyzer`); `~/.cargo/bin` is on `PATH` for `cargo install`ed binaries. Neovim uses LazyVim's Rust extra, which picks up `rust-analyzer` from `PATH` (Mason only installs the `codelldb` debugger). First-time setup after a switch:
+
+```sh
+rustup default stable
+rustup component add rust-analyzer
+```
+
+Projects can pin their own toolchain with a `rust-toolchain.toml`.
 
 ## Differences from the source repos
 

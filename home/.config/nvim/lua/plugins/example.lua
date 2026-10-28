@@ -97,14 +97,13 @@ return {
   -- add jsonls and schemastore packages, and setup treesitter for json, json5 and jsonc
   { import = "lazyvim.plugins.extras.lang.json" },
 
-  -- add any tools you want to have installed below
+  -- add any tools you want to have installed below (LazyVim already installs
+  -- stylua and shfmt; listing them again makes mason try to install them twice)
   {
     "mason-org/mason.nvim",
     opts = {
       ensure_installed = {
-        "stylua",
         "shellcheck",
-        "shfmt",
       },
     },
   },
