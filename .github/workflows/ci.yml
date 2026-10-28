@@ -246,17 +246,25 @@ jobs:
           Copy-Item "$env:RUNNER_TEMP\windows-files" "$env:USERPROFILE\.dotfiles-windows" -Recurse
           Get-ChildItem "$env:USERPROFILE\.dotfiles-windows" -Force | Select-Object Name, Length
 
-      # Hosted Windows images ship an old winget (or none). `winget configure`
-      # installs the latest Microsoft.WinGet.DSC/Client from PSGallery, and in an
-      # elevated session (the runner's) a module newer than App Installer cannot
-      # reach it: "Failed to create instance: -2147023174" (winget-cli#6560).
-      # Bring App Installer up to date first, in a step of its own so that no
-      # process keeps talking to the old COM server.
+      # Hosted Windows images ship an old winget. `winget configure` installs the
+      # latest Microsoft.WinGet.DSC/Client from PSGallery, and in an elevated
+      # session (the runner's) a module newer than App Installer cannot reach it:
+      # "Failed to create instance: -2147023174" (winget-cli#6560). Install the
+      # latest App Installer from its release, in a step of its own so that no
+      # process keeps talking to the old COM server. (Repair-WinGetPackageManager
+      # fails here: it re-registers the image's package, which is not usable.)
       - name: Update winget (App Installer)
         run: |
-          Install-PackageProvider -Name NuGet -Force | Out-Null
-          Install-Module -Name Microsoft.WinGet.Client -Force -Repository PSGallery
-          Repair-WinGetPackageManager -AllUsers -Latest -Force
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          $dir = Join-Path $env:RUNNER_TEMP 'winget-release'
+          New-Item -ItemType Directory -Path $dir -Force | Out-Null
+          $base = 'https://github.com/microsoft/winget-cli/releases/latest/download'
+          Invoke-WebRequest "$base/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle" -OutFile "$dir\appinstaller.msixbundle"
+          Invoke-WebRequest "$base/DesktopAppInstaller_Dependencies.zip" -OutFile "$dir\dependencies.zip"
+          Expand-Archive "$dir\dependencies.zip" -DestinationPath "$dir\dependencies" -Force
+          $deps = @(Get-ChildItem "$dir\dependencies\x64" -Filter *.appx | ForEach-Object FullName)
+          Add-AppxPackage -Path "$dir\appinstaller.msixbundle" -DependencyPath $deps -ForceUpdateFromAnyVersion
           Add-Content -Path $env:GITHUB_PATH -Value "$env:LOCALAPPDATA\Microsoft\WindowsApps"
 
       - name: winget version
