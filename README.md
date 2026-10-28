@@ -106,7 +106,7 @@ cd ~/dotfiles
 make
 ```
 
-The target is detected as `arch` (desktop: Alacritty and the Hack Nerd Font included). It asks before
+The target is detected as `arch` (desktop: Alacritty and the Geist Mono Nerd Font included). It asks before
 touching `flake.nix` (see below); `make YES=1` skips the question.
 
 ### What the first run does
