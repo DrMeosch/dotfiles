@@ -1,6 +1,6 @@
 { ... }:
 
-# Ubuntu on WSL2. No local display, so no Alacritty/fonts (gui.nix is not
+# Ubuntu or Arch under WSL2. No local display, so no Alacritty/fonts (gui.nix is not
 # imported for this target). The terminal is Windows Terminal on the host side;
 # set the font and theme there.
 {
@@ -10,7 +10,7 @@
   # not packaged in nixpkgs for Linux, so it cannot be installed from here.
 
   # Open Linux-side URLs in the Windows default browser when wslu is installed
-  # (sudo apt install wslu). Uncomment if you want it:
+  # (Ubuntu: sudo apt install wslu; Arch: from the AUR). Uncomment if you want it:
   # home.sessionVariables.BROWSER = "wslview";
 
   # tmux copies go to the Windows clipboard via clip.exe through

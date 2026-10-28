@@ -1,24 +1,14 @@
 #!/usr/bin/env bash
-# Apply the current config. Edit files in the repo, then run this.
+# Apply the current config. Edit files in the repo, then run this (or `make`,
+# which calls it once the machine has been bootstrapped).
+#
+# Usage: ./rebuild.sh [arch|ubuntu|wsl-arch|wsl-ubuntu]
 set -euo pipefail
 
-detect_target() {
-  if grep -qiE '(microsoft|wsl)' /proc/version 2>/dev/null; then
-    echo wsl
-  elif [ -f /etc/arch-release ]; then
-    echo arch
-  elif command -v apt >/dev/null 2>&1; then
-    echo ubuntu
-  else
-    echo ""
-  fi
-}
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
-TARGET="${1:-$(detect_target)}"
-if [ -z "$TARGET" ]; then
-  echo "Could not auto-detect the target (arch/ubuntu/wsl)."
-  echo "Re-run as: ./rebuild.sh <arch|ubuntu|wsl>"
-  exit 1
-fi
+# Detects arch / ubuntu / wsl-arch / wsl-ubuntu, or validates the one given.
+TARGET="$("$DIR/scripts/detect-target.sh" "${1:-}")"
+echo "==> Target: $TARGET"
 
 exec home-manager switch --flake "$HOME/.dotfiles#$TARGET" -b bak

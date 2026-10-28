@@ -1,5 +1,5 @@
 {
-  description = "dotfiles - standalone home-manager for Arch Linux, Ubuntu, and Ubuntu on WSL2";
+  description = "dotfiles - standalone home-manager for Arch Linux and Ubuntu, native or under WSL2";
 
   inputs = {
     # Pinned to the 26.05 release line, like the repo this was based on.
@@ -12,10 +12,10 @@
   outputs = { self, nixpkgs, home-manager, ... }:
     let
       # The one username line to change if this isn't your machine.
-      # bootstrap.sh offers to rewrite this for you if your login name differs.
+      # bootstrap.sh (via `make`) offers to rewrite this for you if your login name differs.
       user = "ag";
 
-      # All three targets (Arch, Ubuntu, WSL2) are 64-bit Intel/AMD.
+      # All targets (Arch and Ubuntu, native or under WSL2) are 64-bit Intel/AMD.
       # Change to "aarch64-linux" for an ARM machine.
       system = "x86_64-linux";
 
@@ -30,14 +30,22 @@
           extraSpecialArgs = { inherit user; };
           modules = [ ./home/common.nix ] ++ modules;
         };
-    in
-    {
-      # Build one of these with ./rebuild.sh (it auto-detects the target) or
-      #   home-manager switch --flake ~/.dotfiles#<target>
-      homeConfigurations = {
+
+      configs = {
         arch = mkHome [ ./home/gui.nix ./home/arch.nix ];
         ubuntu = mkHome [ ./home/gui.nix ./home/ubuntu.nix ];
-        wsl = mkHome [ ./home/wsl.nix ];
+        # Under WSL2 there is no local display, so no gui.nix.
+        wsl-arch = mkHome [ ./home/wsl.nix ./home/arch.nix ];
+        wsl-ubuntu = mkHome [ ./home/wsl.nix ./home/ubuntu.nix ];
+      };
+    in
+    {
+      # Build one of these with `make` or ./rebuild.sh (both auto-detect the
+      # target), or directly:
+      #   home-manager switch --flake ~/.dotfiles#<target>
+      homeConfigurations = configs // {
+        # Legacy name from when there was a single WSL2 target (it was Ubuntu).
+        wsl = configs.wsl-ubuntu;
       };
     };
 }
