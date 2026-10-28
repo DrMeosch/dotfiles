@@ -8,9 +8,10 @@ general.import = ["~/.config/alacritty/themes/rose-pine-moon.toml"]
 
 [font]
 size = 13.0
-normal = { family = "Hack Nerd Font", style = "Regular" }
-bold = { family = "Hack Nerd Font", style = "Bold" }
-italic = { family = "Hack Nerd Font", style = "Italic" }
+# Geist Mono has no italic cut, so there is no italic line: Alacritty falls
+# back to the normal family.
+normal = { family = "GeistMono Nerd Font", style = "Regular" }
+bold = { family = "GeistMono Nerd Font", style = "Bold" }
 
 [window]
 # Match the base repo's dimmed, slightly transparent look.

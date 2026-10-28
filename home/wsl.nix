@@ -2,7 +2,8 @@
 
 # Ubuntu or Arch under WSL2. No local display, so no Alacritty/fonts (gui.nix is not
 # imported for this target). The terminal is Windows Terminal on the host side;
-# set the font and theme there.
+# the font is installed there by windows/setup.ps1 (run it from PowerShell on
+# the Windows side); set the theme there too.
 {
   # Neovim's system clipboard on WSL2: install win32yank on the Windows side
   # (winget install equalsraf.win32yank). Neovim auto-detects win32yank.exe on

@@ -15,6 +15,8 @@
 # reliable way to install an Arch WSL distro on the Windows runner. Its target
 # detection is checked by test-detect-target.sh and its configuration by
 # `make check`.
+#   windows-font - windows/setup.ps1 on windows-latest: installs the Nerd Font
+#            for the user and sets it in a Windows Terminal settings.json
 name: CI
 
 on:
@@ -62,7 +64,7 @@ jobs:
         run: make check
 
       - name: Smoke test
-        run: ./.github/scripts/smoke-test.sh
+        run: EXPECT_FONT=1 ./.github/scripts/smoke-test.sh
 
   arch:
     runs-on: ubuntu-latest
@@ -105,7 +107,7 @@ jobs:
           grep -q 'existing setup found' /tmp/second.log
 
       - name: Smoke test
-        run: sudo -iu builder "$GITHUB_WORKSPACE/.github/scripts/smoke-test.sh"
+        run: sudo -iu builder env EXPECT_FONT=1 "$GITHUB_WORKSPACE/.github/scripts/smoke-test.sh"
 
   wsl:
     runs-on: windows-latest
@@ -168,3 +170,69 @@ jobs:
 
       - name: Smoke test
         run: ~/dotfiles/.github/scripts/smoke-test.sh
+
+  # windows/setup.ps1 is what puts the Nerd Font on the Windows side of WSL.
+  # Runs in Windows PowerShell 5.1, the one every Windows has.
+  windows-font:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: powershell
+    env:
+      FONT_FACE: GeistMono Nerd Font
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      # A settings.json like Windows Terminal writes it: comments, a trailing
+      # comma, and a WSL profile. It sits in the stable-package location.
+      - name: Create a Windows Terminal settings.json
+        run: |
+          $dir = "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState"
+          New-Item -ItemType Directory -Path $dir -Force | Out-Null
+          @'
+          // Windows Terminal settings (test fixture)
+          {
+              "defaultProfile": "{ubuntu}",
+              "profiles": {
+                  "defaults": { "colorScheme": "One Half Dark" },
+                  "list": [
+                      { "guid": "{ubuntu}", "name": "Ubuntu", "source": "Windows.Terminal.Wsl" },
+                      { "guid": "{ps}", "name": "PowerShell", "commandline": "powershell.exe", },
+                  ]
+              },
+          }
+          '@ | Set-Content -Path "$dir\settings.json" -Encoding UTF8
+
+      - name: Run windows/setup.ps1
+        run: .\windows\setup.ps1
+
+      - name: Run it again (must be a no-op)
+        run: .\windows\setup.ps1
+
+      - name: Assert the font and the settings
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $fontDir = "$env:LOCALAPPDATA\Microsoft\Windows\Fonts"
+          $files = Get-ChildItem $fontDir -Filter 'GeistMonoNerdFont-*.otf'
+          if ($files.Count -ne 9) { throw "expected 9 font files in $fontDir, found $($files.Count)" }
+          $reg = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts'
+          foreach ($f in $files) {
+              $name = $f.BaseName + ' (OpenType)'
+              if ($reg.$name -ne $f.FullName) { throw "$name is not registered for the user" }
+          }
+          # Windows itself must see the family under the name Windows Terminal is given.
+          Add-Type -AssemblyName PresentationCore
+          $regular = Join-Path $fontDir 'GeistMonoNerdFont-Regular.otf'
+          $families = [Windows.Media.Fonts]::GetFontFamilies([Uri]$regular) | ForEach-Object { $_.Source }
+          if (-not ($families -match [regex]::Escape($env:FONT_FACE))) { throw "'$env:FONT_FACE' not found in: $($families -join ', ')" }
+
+          $settingsFile = "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json"
+          $s = Get-Content $settingsFile -Raw | ConvertFrom-Json
+          if ($s.profiles.defaults.font.face -ne $env:FONT_FACE) { throw "profiles.defaults.font.face is not set" }
+          if ($s.profiles.defaults.colorScheme -ne 'One Half Dark') { throw "existing settings were lost" }
+          if ($s.profiles.list.Count -ne 2) { throw "profile list was damaged" }
+          $backups = @(Get-ChildItem (Split-Path $settingsFile) -Filter 'settings.json.bak-*')
+          if ($backups.Count -ne 1) { throw "expected exactly 1 backup after two runs, found $($backups.Count)" }
+          if ((Get-Content $backups[0].FullName -Raw) -notmatch 'Windows Terminal settings \(test fixture\)') { throw "backup is not the original file" }
+          Write-Host "font files, registry, settings.json and backup all check out"

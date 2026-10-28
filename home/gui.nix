@@ -8,7 +8,8 @@ in
 {
   home.packages = with pkgs; [
     alacritty
-    nerd-fonts.hack  # the font Alacritty and Neovim render in
+    nerd-fonts.geist-mono  # the font Alacritty and Neovim render in (family "GeistMono Nerd Font")
+    fontconfig             # fc-list / fc-match, to check which fonts are installed
     # System-clipboard providers: Neovim's `unnamedplus` and tmux's
     # copy-to-os-clipboard both need one of these on Linux. xclip covers X11,
     # wl-clipboard covers Wayland; having both means yank/copy works whichever

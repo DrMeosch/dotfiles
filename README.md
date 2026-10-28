@@ -19,7 +19,9 @@ A `home-manager switch` builds:
 - **Terminal**: Alacritty with a collection of color themes (rose-pine moon by default) - desktop targets only
 - **CLI tools**: ripgrep, fd, fzf, jq, lazygit, git, rustup, tree-sitter
 - **Agent configs**: one shared `AGENTS.md` for Claude / Codex / opencode, plus Claude and Pi settings
-- **Font**: Hack Nerd Font (desktop targets)
+- **Font**: [Geist Mono Nerd Font](https://github.com/ryanoasis/nerd-fonts) (family `GeistMono Nerd Font`; Nix on the desktop targets, `windows/setup.ps1` for Windows Terminal on WSL2)
+
+![Geist Mono Nerd Font: code, a starship prompt and a tmux bar](docs/geist-mono-preview.png)
 
 ## Layout
 
@@ -43,10 +45,13 @@ home/
   AGENTS.md          # shared agent instructions
   .claude/ .pi/      # agent settings
 .github/
-  workflows/ci.yml   # CI: make + smoke test on Ubuntu, Arch, and Ubuntu on WSL2
+  workflows/ci.yml   # CI: make + smoke test on Ubuntu, Arch, and Ubuntu on WSL2; font setup on Windows
   scripts/smoke-test.sh
   scripts/test-detect-target.sh
   scripts/test-make-update.sh
+windows/
+  setup.ps1          # Windows side of WSL2: installs the Nerd Font, sets it in Windows Terminal
+docs/                # preview images
 ```
 
 Config files are symlinked **out of the Nix store** (`mkOutOfStoreSymlink`), so you can edit
@@ -163,11 +168,12 @@ and the `wsl` alias) without building or applying anything.
 `.github/workflows/ci.yml` runs the real `make` on every push to `master` and every pull request: a first
 `make` that must take the bootstrap path, then a second `make` that must take the rebuild path, then
 `.github/scripts/smoke-test.sh` (tools on `PATH` from the Nix profile, linked files resolve into the repo,
-tmux loads `~/.tmux.conf` without errors, `nvim --headless +qa` exits 0). The Ubuntu job also runs
+tmux loads `~/.tmux.conf` without errors, `nvim --headless +qa` exits 0; on the desktop targets also that `fc-list` / `fc-match` find `GeistMono Nerd Font`). The Ubuntu job also runs
 `make help` and `make check`, plus `.github/scripts/test-detect-target.sh`, which checks the four-way
 target detection (including WSL2 Arch and Arch/Ubuntu derivatives) against fixture files, and
 `.github/scripts/test-make-update.sh`, which drives `make update` against a throwaway origin. Jobs: `ubuntu` (ubuntu-latest), `arch`
-(archlinux container) and `wsl` (Ubuntu 24.04 on real WSL2 on windows-latest, target `wsl-ubuntu`). Arch under WSL2 is not run
+(archlinux container), `wsl` (Ubuntu 24.04 on real WSL2 on windows-latest, target `wsl-ubuntu`) and `windows-font`
+(runs `windows/setup.ps1` on windows-latest and checks the installed font files, their registration and the edited Windows Terminal settings). Arch under WSL2 is not run
 on a real WSL2 Arch distro in CI; its detection is covered by the fixture test and its configuration by
 `make check`.
 
@@ -193,8 +199,20 @@ settings.user.email = "you@example.com";
 
 ## Notes per target
 
-- **Arch / Ubuntu desktop**: import `gui.nix`, so you get Alacritty and the Hack Nerd Font. Set your terminal font to "Hack Nerd Font".
-- **WSL2 (Ubuntu or Arch)**: no local display, so no Alacritty/fonts. Set the font and colors in **Windows Terminal** on the host side. Neovim copies to the Windows clipboard via `win32yank`, which you install on the Windows side (`winget install equalsraf.win32yank`; it is not in nixpkgs for Linux); tmux copies via `clip.exe` through the tmux-yank plugin (it is on `PATH` whenever Windows interop is enabled - the default). For `wslview` as `$BROWSER`, install `wslu` (Ubuntu: `sudo apt install wslu`; Arch: from the AUR) and uncomment the line in `home/wsl.nix`.
+- **Arch / Ubuntu desktop**: import `gui.nix`, so you get Alacritty and the Geist Mono Nerd Font (`nerd-fonts.geist-mono`, registered with fontconfig by home-manager, so it is there before Alacritty starts). `alacritty.toml` already uses the family `GeistMono Nerd Font`; set the same name in any other terminal. The icons the setup relies on (starship, tmux, Neovim file tree) look like this:
+
+  ![Nerd Font icons](docs/geist-mono-icons.png)
+- **WSL2 (Ubuntu or Arch)**: no local display, so no Alacritty and no fonts from Nix. The text is drawn by **Windows Terminal** with Windows' own fonts, so the Nerd Font icons (starship, tmux, Neovim) show up as boxes until the same font is installed on Windows. Run the font setup once from PowerShell on the Windows side (no admin rights needed):
+
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File \\wsl$\Ubuntu\home\<you>\dotfiles\windows\setup.ps1
+  # or, from a Windows checkout of this repo:
+  powershell -ExecutionPolicy Bypass -File windows\setup.ps1
+  ```
+
+  It downloads the pinned Nerd Fonts release of GeistMono (the same one nixpkgs ships), verifies its SHA-256, installs the fonts for your user and registers them, then sets `profiles.defaults.font.face` to `GeistMono Nerd Font` in every Windows Terminal `settings.json` it finds (stable, preview and unpackaged installs) - and in WSL profiles that set their own font. It backs the file up as `settings.json.bak-<timestamp>` before changing it (comments in `settings.json` are not kept when it is rewritten; the backup has them), does nothing if the font is already set, and is safe to run again. Restart Windows Terminal afterwards. Colors are still set in Windows Terminal itself.
+
+  Neovim copies to the Windows clipboard via `win32yank`, which you install on the Windows side (`winget install equalsraf.win32yank`; it is not in nixpkgs for Linux); tmux copies via `clip.exe` through the tmux-yank plugin (it is on `PATH` whenever Windows interop is enabled - the default). For `wslview` as `$BROWSER`, install `wslu` (Ubuntu: `sudo apt install wslu`; Arch: from the AUR) and uncomment the line in `home/wsl.nix`.
 
 ## Rust
 
