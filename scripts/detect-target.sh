@@ -35,6 +35,10 @@ if [ "$(uname -s)" != "Linux" ] && [ -z "${DETECT_OS_RELEASE:-}" ]; then
 fi
 
 OS_RELEASE="${DETECT_OS_RELEASE:-/etc/os-release}"
+# Some minimal images only ship the file under /usr/lib.
+if [ ! -r "$OS_RELEASE" ] && [ -z "${DETECT_OS_RELEASE:-}" ]; then
+  OS_RELEASE=/usr/lib/os-release
+fi
 distro=""
 if [ -r "$OS_RELEASE" ]; then
   distro="$(. "$OS_RELEASE" && echo "${ID:-}")"
