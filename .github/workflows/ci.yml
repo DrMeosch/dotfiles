@@ -246,16 +246,22 @@ jobs:
           Copy-Item "$env:RUNNER_TEMP\windows-files" "$env:USERPROFILE\.dotfiles-windows" -Recurse
           Get-ChildItem "$env:USERPROFILE\.dotfiles-windows" -Force | Select-Object Name, Length
 
-      # Hosted Windows images do not always ship winget.
-      - name: Make sure winget is available
+      # Hosted Windows images ship an old winget (or none). `winget configure`
+      # installs the latest Microsoft.WinGet.DSC/Client from PSGallery, and in an
+      # elevated session (the runner's) a module newer than App Installer cannot
+      # reach it: "Failed to create instance: -2147023174" (winget-cli#6560).
+      # Bring App Installer up to date first, in a step of its own so that no
+      # process keeps talking to the old COM server.
+      - name: Update winget (App Installer)
         run: |
-          if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-              Install-PackageProvider -Name NuGet -Force | Out-Null
-              Install-Module -Name Microsoft.WinGet.Client -Force -Repository PSGallery
-              Repair-WinGetPackageManager -AllUsers -Latest -Force
-              Add-Content -Path $env:GITHUB_PATH -Value "$env:LOCALAPPDATA\Microsoft\WindowsApps"
-          }
-          # The step's own PATH may not have it yet; look it up for the version line.
+          Install-PackageProvider -Name NuGet -Force | Out-Null
+          Install-Module -Name Microsoft.WinGet.Client -Force -Repository PSGallery
+          Repair-WinGetPackageManager -AllUsers -Latest -Force
+          Add-Content -Path $env:GITHUB_PATH -Value "$env:LOCALAPPDATA\Microsoft\WindowsApps"
+
+      - name: winget version
+        run: |
+          # The step's own PATH may not have it yet; look it up.
           $w = Get-Command winget -ErrorAction SilentlyContinue
           if (-not $w) { $w = Get-Item "$env:LOCALAPPDATA\Microsoft\WindowsApps\winget.exe" }
           & $w.Source --version
