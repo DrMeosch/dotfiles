@@ -26,11 +26,15 @@ in
     lazygit
     neovim
     tmux
+    rustup    # rust toolchains (cargo, rustc); rust-analyzer via `rustup component add`
     # Note: fzf, git and starship are installed by their programs.* blocks below,
     # so they are not repeated here.
   ];
 
   home.sessionVariables.EDITOR = "nvim";
+
+  # cargo install puts binaries here, and rustup's cargo/rustc proxies live here too.
+  home.sessionPath = [ "${config.home.homeDirectory}/.cargo/bin" ];
 
   programs.zsh = {
     enable = true;
