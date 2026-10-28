@@ -6,7 +6,10 @@
 #   make                  first run on a machine: bootstrap.sh
 #                         every later run:        rebuild.sh
 #   make update           git pull --ff-only, then make apply
-#   make check            evaluate all homeConfigurations, apply nothing
+#   make check            evaluate all homeConfigurations and build the Windows files,
+#                         apply nothing
+#   make windows          WSL2 only: render the Windows-side files and copy them to
+#                         %USERPROFILE%\.dotfiles-windows (setup.ps1 applies them there)
 #
 # Variables:
 #   TARGET=<name>   arch, ubuntu, wsl-arch or wsl-ubuntu (default: detected)
@@ -23,7 +26,7 @@ NIX_ENV = if [ -e $(NIX_DAEMON_SH) ]; then . $(NIX_DAEMON_SH); fi; \
 	PATH="$$PATH:$$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin"; export PATH
 
 .DEFAULT_GOAL := apply
-.PHONY: help apply update check
+.PHONY: help apply update check windows
 
 help: ## Show this list
 	@echo "Usage: make [target] [TARGET=<arch|ubuntu|wsl-arch|wsl-ubuntu>] [YES=1]"
@@ -86,7 +89,7 @@ update: ## Pull the latest repo state (fast-forward only), then apply
 	restore
 	@$(MAKE) --no-print-directory apply
 
-check: ## Evaluate every homeConfiguration without applying anything
+check: ## Evaluate every homeConfiguration and build the Windows files, apply nothing
 	@$(NIX_ENV); \
 	if ! command -v nix >/dev/null 2>&1; then \
 		echo "make check: Nix is not installed yet; run make first." >&2; exit 1; \
@@ -98,4 +101,29 @@ check: ## Evaluate every homeConfiguration without applying anything
 		echo "==> evaluating homeConfigurations.$$name"; \
 		nix eval --raw "$(ROOT)#homeConfigurations.$$name.activationPackage.drvPath" >/dev/null || exit 1; \
 	done; \
-	echo "==> make check: all configurations evaluate"
+	echo "==> building packages.windows"; \
+	out=$$(nix build "$(ROOT)#windows" --no-link --print-out-paths) || exit 1; \
+	for f in configuration.winget windows-terminal-fragment.json .wslconfig setup.ps1; do \
+		[ -s "$$out/$$f" ] || { echo "make check: $$out/$$f is missing or empty" >&2; exit 1; }; \
+	done; \
+	echo "==> make check: all configurations evaluate, the Windows files build"
+
+windows: ## WSL2: render the Windows files and copy them to %USERPROFILE%\.dotfiles-windows
+	@$(NIX_ENV); \
+	case "$$("$(DETECT)" $(TARGET))" in wsl|wsl-*) ;; \
+	*) echo "make windows: run this inside a WSL2 distro; it copies the files to the Windows side." >&2; exit 1 ;; \
+	esac; \
+	for tool in nix cmd.exe wslpath; do \
+		command -v $$tool >/dev/null 2>&1 || { echo "make windows: $$tool not found (Nix installed? Windows interop enabled?)" >&2; exit 1; }; \
+	done; \
+	out=$$(nix build "$(ROOT)#windows" --no-link --print-out-paths) || exit 1; \
+	winhome=$$(cd "$$(wslpath -u 'C:\')" && cmd.exe /c 'echo %USERPROFILE%' 2>/dev/null | tr -d '\r'); \
+	dest=$$(wslpath -u "$$winhome" 2>/dev/null)/.dotfiles-windows; \
+	if [ -z "$$winhome" ] || [ "$$dest" = /.dotfiles-windows ]; then \
+		echo "make windows: could not find the Windows profile folder." >&2; exit 1; \
+	fi; \
+	rm -rf "$$dest"; mkdir -p "$$dest" || exit 1; \
+	cp -rL --no-preserve=mode,ownership "$$out"/. "$$dest"/ || exit 1; \
+	echo "==> make windows: copied to $$winhome\.dotfiles-windows"; \
+	echo "    Now apply it from PowerShell on Windows:"; \
+	echo "    powershell -ExecutionPolicy Bypass -File $$winhome\.dotfiles-windows\setup.ps1"
