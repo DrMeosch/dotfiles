@@ -130,15 +130,15 @@ over the WSL file share. The folder holds what the flake renders (`nix build .#w
 - `.wslconfig` - WSL2 settings for `%USERPROFILE%\.wslconfig` (memory is given back to Windows when idle, new virtual disks are sparse).
 - `setup.ps1` - a copy of `windows/setup.ps1`, so the folder is self-contained.
 
-`setup.ps1` does, in order: installs the pinned Geist Mono Nerd Font for your user and loads it into the running session;
-runs `winget configure test` on `configuration.winget` and `winget configure` only if something is not in the desired state;
-copies the fragment to `%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\dotfiles\`; copies `.wslconfig` to
-`%USERPROFILE%\.wslconfig` (an existing, different one is kept as `.wslconfig.bak-<timestamp>`); and last sets
-`profiles.defaults.font.face` to `GeistMono Nerd Font` in every Windows Terminal `settings.json` it finds (stable, preview and
-unpackaged installs; a profile that sets its own font keeps it, and a legacy file with no `profiles.defaults` only gets a warning;
-the file is backed up as `settings.json.bak-<timestamp>` first, and comments in it are not kept when it is rewritten - the backup has
-them). A `settings.json` that cannot be parsed or written only produces a warning and a non-zero exit, after everything else was applied. Every step does nothing when
-already done, so it is safe to run again. `-Source <folder>` points it at another folder with the rendered files.
+`setup.ps1` does, in order: copies the fragment to `%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\dotfiles\` and `.wslconfig` to
+`%USERPROFILE%\.wslconfig` (an existing, different one is kept as `.wslconfig.bak-<timestamp>`); installs the pinned Geist Mono Nerd Font
+for your user and loads it into the running session; runs `winget configure test` on `configuration.winget` and `winget configure`
+only if something is not in the desired state; and last sets `profiles.defaults.font.face` to `GeistMono Nerd Font` in every Windows
+Terminal `settings.json` it finds (stable, preview and unpackaged installs; a profile that sets its own font keeps it, and a legacy
+file with no `profiles.defaults` only gets a warning; the file is backed up as `settings.json.bak-<timestamp>` first, and comments in
+it are not kept when it is rewritten - the backup has them). A failure in the font install, the winget step or a `settings.json` only
+produces a warning and does not stop the steps after it; the script exits non-zero at the end, after everything else was applied.
+Every step does nothing when already done, so it is safe to run again. `-Source <folder>` points it at another folder with the rendered files.
 
 **On a fresh machine**, in this order:
 

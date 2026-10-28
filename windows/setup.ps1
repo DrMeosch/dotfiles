@@ -9,25 +9,25 @@
   Nerd Font icons used by starship, tmux and Neovim show up as boxes unless the
   font is installed on Windows too. This script:
 
-    1. downloads the pinned Nerd Fonts release of GeistMono and verifies its SHA-256,
-    2. copies the TTF/OTF files to %LOCALAPPDATA%\Microsoft\Windows\Fonts and
-       registers them under HKCU (the per-user font mechanism of Windows 10 1809+)
-       and loads them into the running session, so no sign-out is needed,
-    3. applies the files the flake renders (`make windows` in WSL copies them to
+    1. copies the files the flake renders (`make windows` in WSL puts them in
        %USERPROFILE%\.dotfiles-windows, next to this script):
-         configuration.winget            `winget configure test`, then `winget configure`
-                                         when something is not in the desired state
-                                         (this is what installs win32yank)
          windows-terminal-fragment.json  copied to %LOCALAPPDATA%\Microsoft\Windows Terminal\
                                          Fragments\dotfiles\ (color scheme + profile)
          .wslconfig                      copied to %USERPROFILE%\.wslconfig (an existing,
                                          different file is kept as .wslconfig.bak-<timestamp>)
+    2. downloads the pinned Nerd Fonts release of GeistMono and verifies its SHA-256,
+       copies the TTF/OTF files to %LOCALAPPDATA%\Microsoft\Windows\Fonts and
+       registers them under HKCU (the per-user font mechanism of Windows 10 1809+)
+       and loads them into the running session, so no sign-out is needed,
+    3. runs `winget configure test` on configuration.winget, then `winget configure`
+       when something is not in the desired state (this is what installs win32yank),
     4. for each Windows Terminal settings.json found (stable, preview, unpackaged):
        backs it up, then sets profiles.defaults.font.face to the font. Skipped
-       when already set; profiles with their own font keep it. Done last: a
-       settings.json that cannot be parsed or written is reported as a warning
-       and a non-zero exit, after everything else was applied.
-       Without the rendered files, only steps 1 and 4 run.
+       when already set; profiles with their own font keep it.
+
+  Steps 2 to 4 run even when an earlier one failed: a failure is reported as a
+  warning, and the script exits non-zero at the end, after everything else was
+  applied. Without the rendered files, only steps 2 and 4 run.
 
   The font is the same Nerd Fonts release that nixpkgs ships to Arch and Ubuntu
   (nerd-fonts.geist-mono), so the glyphs match on every target.
@@ -243,18 +243,24 @@ function Invoke-WinGetConfiguration([string]$File) {
     if ($LASTEXITCODE -ne 0) { throw "winget configure test still fails after applying (exit code $LASTEXITCODE)" }
 }
 
-# The local copies come first: they cannot fail for network reasons, so a winget
-# failure (no App Installer, offline) does not keep them from being applied.
 function Install-Rendered([string]$Dir) {
     Copy-IfChanged (Join-Path $Dir 'windows-terminal-fragment.json') `
         (Join-Path $env:LOCALAPPDATA 'Microsoft\Windows Terminal\Fragments\dotfiles\dotfiles.json')
     Copy-IfChanged (Join-Path $Dir '.wslconfig') (Join-Path $env:USERPROFILE '.wslconfig') -Backup
-    Invoke-WinGetConfiguration (Join-Path $Dir 'configuration.winget')
+}
+
+# Runs a step; a failure is reported and remembered, so the later steps still run.
+function Invoke-Step([string]$Name, [scriptblock]$Action) {
+    try { & $Action }
+    catch {
+        Write-Warning "${Name} failed: $($_.Exception.Message)"
+        $script:failed += $Name
+    }
 }
 
 # The dot-sourcing guard lets the functions be tested without installing anything.
 if ($MyInvocation.InvocationName -ne '.') {
-    Install-Fonts
+    $failed = @()
 
     if (-not $Source) {
         $Source = if (Test-Path (Join-Path $PSScriptRoot 'configuration.winget')) { $PSScriptRoot }
@@ -263,7 +269,11 @@ if ($MyInvocation.InvocationName -ne '.') {
     $rendered = Test-Path (Join-Path $Source 'configuration.winget')
     if ($rendered) { Install-Rendered $Source }
 
-    # Last, and per file: an unreadable settings.json must not keep the rest from being applied.
+    Invoke-Step 'font install' { Install-Fonts }
+    if ($rendered) {
+        Invoke-Step 'winget configure' { Invoke-WinGetConfiguration (Join-Path $Source 'configuration.winget') }
+    }
+
     $candidates = @(
         "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json",
         "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe\LocalState\settings.json",
@@ -273,13 +283,8 @@ if ($MyInvocation.InvocationName -ne '.') {
     if (-not $found) {
         Write-Host "No Windows Terminal settings.json found; set the font to '$FontFace' in your terminal by hand."
     }
-    $failed = @()
     foreach ($path in $found) {
-        try { Set-TerminalFont $path }
-        catch {
-            Write-Warning "Could not set the font in ${path}: $($_.Exception.Message)"
-            $failed += $path
-        }
+        Invoke-Step "settings.json ($path)" { Set-TerminalFont $path }
     }
 
     if ($rendered) {
@@ -289,5 +294,5 @@ if ($MyInvocation.InvocationName -ne '.') {
         Write-Host "No rendered files in $Source. In WSL run 'make windows', then run this script again to apply them."
         Write-Host "Done with the font. Restart Windows Terminal to pick it up."
     }
-    if ($failed) { throw "settings.json not updated (everything else was applied): $($failed -join ', ')" }
+    if ($failed) { throw "Failed (everything else was applied): $($failed -join ', ')" }
 }
