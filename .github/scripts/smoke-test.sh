@@ -29,12 +29,12 @@ fi
 
 # -- linked files resolve into this repo --------------------------------------
 check_link() {
-  local link="$1" want="$2" real
+  local link="$1" want="$REPO${2:+/$2}" real
   if [ ! -L "$link" ]; then bad "$link is not a symlink"; return; fi
   if ! real="$(readlink -f "$link")" || [ ! -e "$real" ]; then bad "$link dangles"; return; fi
-  if [ "$real" = "$REPO/$want" ]; then ok "$link -> $real"; else bad "$link -> $real, expected $REPO/$want"; fi
+  if [ "$real" = "$want" ]; then ok "$link -> $real"; else bad "$link -> $real, expected $want"; fi
 }
-check_link ~/.dotfiles .
+check_link ~/.dotfiles ""
 check_link ~/.config/nvim home/.config/nvim
 check_link ~/.tmux.conf home/.tmux.conf
 check_link ~/.tmux/dark.conf home/.tmux/dark.conf
@@ -42,7 +42,8 @@ check_link ~/.tmux/light.conf home/.tmux/light.conf
 [ -f ~/.tmux/current-theme.conf ] && ok "~/.tmux/current-theme.conf seeded" || bad "~/.tmux/current-theme.conf missing"
 
 # -- zsh starts as an interactive shell with the config -----------------------
-if out="$(zsh -i -c 'command -v starship' 2>&1)"; then ok "zsh -i starts ($out)"; else bad "zsh -i failed: $out"; fi
+# (no tty here, so zsh warns on stderr that it cannot open a terminal)
+if out="$(zsh -i -c 'command -v starship' 2>/dev/null)" && [ -n "$out" ]; then ok "zsh -i starts and finds starship"; else bad "zsh -i failed"; fi
 
 # -- tmux loads the config without errors -------------------------------------
 # Config errors do not fail tmux's exit status; they land in its message log.

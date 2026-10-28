@@ -57,18 +57,18 @@ jobs:
           wsl-version: 2
           additional-packages: curl git ca-certificates sudo
 
-      # Bootstrap needs a regular user (the home directory is /home/<user>).
+      # Bootstrap needs a regular user (the home directory is /home/<user>). Make
+      # it the distro's default user, as on a real install, and restart the
+      # distro so the following steps run as that user.
       - name: Create a regular user
         run: |
           useradd --create-home --shell /bin/bash dev
           echo 'dev ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/dev
+          printf '\n[user]\ndefault=dev\n' >> /etc/wsl.conf
 
-      - name: Run the remaining steps as that user
-        uses: Vampire/setup-wsl@v7.2.0
-        with:
-          distribution: Ubuntu-24.04
-          set-as-default: false
-          wsl-shell-user: dev
+      - name: Restart the distro
+        shell: pwsh
+        run: wsl --terminate Ubuntu-24.04
 
       - name: Show the environment
         run: |
