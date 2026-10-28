@@ -17,7 +17,7 @@ A `home-manager switch` builds:
 - **Multiplexer**: tmux (prefix `C-a`, vi keys) with plugins managed by [tpm](https://github.com/tmux-plugins/tpm), which the config clones and installs on first start (needs `git`)
 - **Editor**: [LazyVim](https://www.lazyvim.org/)-based Neovim config (lazy.nvim, neogit, vimwiki, devcontainer LSP, neovide settings)
 - **Terminal**: Alacritty with a collection of color themes (rose-pine moon by default) - desktop targets only
-- **CLI tools**: ripgrep, fd, fzf, jq, lazygit, git, rustup
+- **CLI tools**: ripgrep, fd, fzf, jq, lazygit, git, rustup, tree-sitter
 - **Agent configs**: one shared `AGENTS.md` for Claude / Codex / opencode, plus Claude and Pi settings
 - **Font**: Hack Nerd Font (desktop targets)
 
