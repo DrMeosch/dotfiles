@@ -222,9 +222,11 @@ jobs:
               if ($reg.$name -ne $f.FullName) { throw "$name is not registered for the user" }
           }
           # Windows itself must see the family under the name Windows Terminal is given.
+          # FamilyNames is the typographic family (name ID 16); GetFontFamilies and
+          # Win32FamilyNames report the legacy "GeistMono NF" (name ID 1) instead.
           Add-Type -AssemblyName PresentationCore
           $regular = Join-Path $fontDir 'GeistMonoNerdFont-Regular.otf'
-          $families = [Windows.Media.Fonts]::GetFontFamilies([Uri]$regular) | ForEach-Object { $_.Source }
+          $families = (New-Object Windows.Media.GlyphTypeface([Uri]$regular)).FamilyNames.Values
           if (-not ($families -match [regex]::Escape($env:FONT_FACE))) { throw "'$env:FONT_FACE' not found in: $($families -join ', ')" }
 
           $settingsFile = "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json"
