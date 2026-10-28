@@ -31,10 +31,8 @@ vim.keymap.set("n", "<leader>uC", choose_theme, {
 })
 
 local function open_git_worktree_in_neovide()
-  local cwd = vim.fn.getcwd()
-  local repo_root = vim.fn.system({ "git", "-C", cwd, "rev-parse", "--show-toplevel" }):gsub("%s+$", "")
-  if vim.v.shell_error ~= 0 or repo_root == "" then
-    vim.notify("The current directory is not inside a Git repository", vim.log.levels.ERROR)
+  local repo_root = require("config.git_root").get()
+  if not repo_root then
     return
   end
 
