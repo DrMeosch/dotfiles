@@ -147,7 +147,7 @@ function Remove-JsonComments([string]$Text) {
 # Sets <obj>.font.face to $Face, creating the pieces. Returns $true when it changed anything.
 function Set-FontFace($Obj, [string]$Face) {
     if (-not $Obj.PSObject.Properties['font'] -or $null -eq $Obj.font) {
-        $Obj | Add-Member -NotePropertyName 'font' -NotePropertyValue ([pscustomobject]@{})
+        $Obj | Add-Member -Force -NotePropertyName 'font' -NotePropertyValue ([pscustomobject]@{})
     }
     if ($Obj.font.PSObject.Properties['face']) {
         if ($Obj.font.face -eq $Face) { return $false }
@@ -162,7 +162,7 @@ function Set-FontFace($Obj, [string]$Face) {
 function Set-TerminalFont([string]$Path) {
     $settings = (Remove-JsonComments (Get-Content -Path $Path -Raw -Encoding UTF8)) | ConvertFrom-Json
     if (-not $settings.PSObject.Properties['profiles'] -or $null -eq $settings.profiles) {
-        $settings | Add-Member -NotePropertyName 'profiles' -NotePropertyValue ([pscustomobject]@{})
+        $settings | Add-Member -Force -NotePropertyName 'profiles' -NotePropertyValue ([pscustomobject]@{})
     }
 
     # "profiles" is {defaults, list} in current Windows Terminal; very old files use a bare list, which has no defaults.
@@ -171,7 +171,7 @@ function Set-TerminalFont([string]$Path) {
         return
     }
     if (-not $settings.profiles.PSObject.Properties['defaults'] -or $null -eq $settings.profiles.defaults) {
-        $settings.profiles | Add-Member -NotePropertyName 'defaults' -NotePropertyValue ([pscustomobject]@{})
+        $settings.profiles | Add-Member -Force -NotePropertyName 'defaults' -NotePropertyValue ([pscustomobject]@{})
     }
     $changed = Set-FontFace $settings.profiles.defaults $FontFace
 
