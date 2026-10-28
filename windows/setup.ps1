@@ -13,10 +13,7 @@
     2. copies the TTF/OTF files to %LOCALAPPDATA%\Microsoft\Windows\Fonts and
        registers them under HKCU (the per-user font mechanism of Windows 10 1809+)
        and loads them into the running session, so no sign-out is needed,
-    3. for each Windows Terminal settings.json found (stable, preview, unpackaged):
-       backs it up, then sets profiles.defaults.font.face to the font. Skipped
-       when already set; profiles with their own font keep it,
-    4. applies the files the flake renders (`make windows` in WSL copies them to
+    3. applies the files the flake renders (`make windows` in WSL copies them to
        %USERPROFILE%\.dotfiles-windows, next to this script):
          configuration.winget            `winget configure test`, then `winget configure`
                                          when something is not in the desired state
@@ -25,7 +22,12 @@
                                          Fragments\dotfiles\ (color scheme + profile)
          .wslconfig                      copied to %USERPROFILE%\.wslconfig (an existing,
                                          different file is kept as .wslconfig.bak-<timestamp>)
-       Without them, only steps 1-3 run.
+    4. for each Windows Terminal settings.json found (stable, preview, unpackaged):
+       backs it up, then sets profiles.defaults.font.face to the font. Skipped
+       when already set; profiles with their own font keep it. Done last: a
+       settings.json that cannot be parsed or written is reported as a warning
+       and a non-zero exit, after everything else was applied.
+       Without the rendered files, only steps 1 and 4 run.
 
   The font is the same Nerd Fonts release that nixpkgs ships to Arch and Ubuntu
   (nerd-fonts.geist-mono), so the glyphs match on every target.
@@ -252,27 +254,38 @@ function Install-Rendered([string]$Dir) {
 if ($MyInvocation.InvocationName -ne '.') {
     Install-Fonts
 
+    if (-not $Source) {
+        $Source = if (Test-Path (Join-Path $PSScriptRoot 'configuration.winget')) { $PSScriptRoot }
+                  else { Join-Path $env:USERPROFILE '.dotfiles-windows' }
+    }
+    $rendered = Test-Path (Join-Path $Source 'configuration.winget')
+    if ($rendered) { Install-Rendered $Source }
+
+    # Last, and per file: an unreadable settings.json must not keep the rest from being applied.
     $candidates = @(
         "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json",
         "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe\LocalState\settings.json",
         "$env:LOCALAPPDATA\Microsoft\Windows Terminal\settings.json"
     )
-    $found = $candidates | Where-Object { Test-Path $_ }
+    $found = @($candidates | Where-Object { Test-Path $_ })
     if (-not $found) {
         Write-Host "No Windows Terminal settings.json found; set the font to '$FontFace' in your terminal by hand."
     }
-    foreach ($path in $found) { Set-TerminalFont $path }
-
-    if (-not $Source) {
-        $Source = if (Test-Path (Join-Path $PSScriptRoot 'configuration.winget')) { $PSScriptRoot }
-                  else { Join-Path $env:USERPROFILE '.dotfiles-windows' }
+    $failed = @()
+    foreach ($path in $found) {
+        try { Set-TerminalFont $path }
+        catch {
+            Write-Warning "Could not set the font in ${path}: $($_.Exception.Message)"
+            $failed += $path
+        }
     }
-    if (Test-Path (Join-Path $Source 'configuration.winget')) {
-        Install-Rendered $Source
+
+    if ($rendered) {
         Write-Host "Done. Restart Windows Terminal; run 'wsl --shutdown' for .wslconfig changes to take effect."
     }
     else {
         Write-Host "No rendered files in $Source. In WSL run 'make windows', then run this script again to apply them."
         Write-Host "Done with the font. Restart Windows Terminal to pick it up."
     }
+    if ($failed) { throw "settings.json not updated (everything else was applied): $($failed -join ', ')" }
 }

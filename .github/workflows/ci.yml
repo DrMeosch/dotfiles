@@ -360,3 +360,26 @@ jobs:
           if ($old.Count -ne 1) { throw "expected exactly 1 .wslconfig backup after two runs, found $($old.Count)" }
           if ((Get-Content $old[0].FullName -Raw) -notmatch 'memory=1GB') { throw ".wslconfig backup is not the original file" }
           Write-Host "win32yank, fragment and .wslconfig all check out"
+
+      # An unparseable settings.json must not keep the rest from being applied:
+      # setup.ps1 warns and exits non-zero, but only after winget, the fragment
+      # and .wslconfig are done.
+      - name: A broken settings.json does not block the rest
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $src = "$env:USERPROFILE\.dotfiles-windows"
+          $frag = "$env:LOCALAPPDATA\Microsoft\Windows Terminal\Fragments\dotfiles\dotfiles.json"
+          $dir = "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe\LocalState"
+          New-Item -ItemType Directory -Path $dir -Force | Out-Null
+          Set-Content -Path "$dir\settings.json" -Value '{ "profiles": { "defaults": ' -Encoding UTF8
+          Remove-Item $frag, "$env:USERPROFILE\.wslconfig"
+          winget uninstall --id equalsraf.win32yank --exact --disable-interactivity
+          if ($LASTEXITCODE -ne 0) { throw "could not uninstall win32yank" }
+          $failed = $false
+          try { .\windows\setup.ps1 } catch { $failed = $true; Write-Host "setup.ps1 failed as expected: $($_.Exception.Message)" }
+          if (-not $failed) { throw "setup.ps1 succeeded with an unparseable settings.json" }
+          winget list --id equalsraf.win32yank --exact --accept-source-agreements --disable-interactivity
+          if ($LASTEXITCODE -ne 0) { throw "win32yank was not reinstalled" }
+          if ((Get-FileHash $frag).Hash -ne (Get-FileHash "$src\windows-terminal-fragment.json").Hash) { throw "fragment was not applied" }
+          if ((Get-FileHash "$env:USERPROFILE\.wslconfig").Hash -ne (Get-FileHash "$src\.wslconfig").Hash) { throw ".wslconfig was not applied" }
+          Write-Host "everything else was applied despite the broken settings.json"

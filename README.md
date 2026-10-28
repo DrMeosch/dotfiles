@@ -131,12 +131,13 @@ over the WSL file share. The folder holds what the flake renders (`nix build .#w
 - `setup.ps1` - a copy of `windows/setup.ps1`, so the folder is self-contained.
 
 `setup.ps1` does, in order: installs the pinned Geist Mono Nerd Font for your user and loads it into the running session;
-sets `profiles.defaults.font.face` to `GeistMono Nerd Font` in every Windows Terminal `settings.json` it finds (stable, preview and
+runs `winget configure test` on `configuration.winget` and `winget configure` only if something is not in the desired state;
+copies the fragment to `%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\dotfiles\`; copies `.wslconfig` to
+`%USERPROFILE%\.wslconfig` (an existing, different one is kept as `.wslconfig.bak-<timestamp>`); and last sets
+`profiles.defaults.font.face` to `GeistMono Nerd Font` in every Windows Terminal `settings.json` it finds (stable, preview and
 unpackaged installs; a profile that sets its own font keeps it, and a legacy file with no `profiles.defaults` only gets a warning;
 the file is backed up as `settings.json.bak-<timestamp>` first, and comments in it are not kept when it is rewritten - the backup has
-them); runs `winget configure test` on `configuration.winget` and `winget configure` only if something is not in the desired state;
-copies the fragment to `%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\dotfiles\`; and copies `.wslconfig` to
-`%USERPROFILE%\.wslconfig` (an existing, different one is kept as `.wslconfig.bak-<timestamp>`). Every step does nothing when
+them). A `settings.json` that cannot be parsed or written only produces a warning and a non-zero exit, after everything else was applied. Every step does nothing when
 already done, so it is safe to run again. `-Source <folder>` points it at another folder with the rendered files.
 
 **On a fresh machine**, in this order:
@@ -219,7 +220,7 @@ target detection (including WSL2 Arch and Arch/Ubuntu derivatives) against fixtu
 (archlinux container), `wsl` (Ubuntu 24.04 on real WSL2 on windows-latest, target `wsl-ubuntu`; it also runs `make windows` and checks the
 files arrive on the Windows side as real files), `windows-files` (builds `packages.windows` on Linux and uploads it) and `windows`
 (downloads those files to `%USERPROFILE%\.dotfiles-windows` on windows-latest, runs `winget configure validate` and `winget configure test`
-on `configuration.winget`, runs `windows/setup.ps1` twice, and checks the installed font files and their registration, the edited Windows Terminal settings,
+on `configuration.winget`, runs `windows/setup.ps1` twice (and once more with an unparseable `settings.json`, which must not block the rest), and checks the installed font files and their registration, the edited Windows Terminal settings,
 that win32yank is installed, and that the fragment and `.wslconfig` are in place). Arch under WSL2 is not run
 on a real WSL2 Arch distro in CI; its detection is covered by the fixture test and its configuration by
 `make check`.
