@@ -102,7 +102,7 @@ in
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.tmux/dark.conf";
   home.file.".tmux/light.conf".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.tmux/light.conf";
-  home.activation.tmuxCurrentTheme = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+  home.activation.tmuxCurrentTheme = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
     if [ ! -e "$HOME/.tmux/current-theme.conf" ]; then
       $DRY_RUN_CMD cp "${dotfiles}/home/.tmux/dark.conf" "$HOME/.tmux/current-theme.conf"
     fi

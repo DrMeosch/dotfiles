@@ -13,7 +13,7 @@
   # (sudo apt install wslu). Uncomment if you want it:
   # home.sessionVariables.BROWSER = "wslview";
 
-  # tmux copies go to the Windows clipboard via clip.exe, which ~/.tmux.conf
-  # detects automatically (clip.exe is on PATH whenever Windows interop is
+  # tmux copies go to the Windows clipboard via clip.exe through
+  # the tmux-yank plugin (clip.exe is on PATH whenever Windows interop is
   # enabled - the default). win32yank is Neovim's provider.
 }
