@@ -36,6 +36,11 @@ echo "==> Step 2: symlink this repo to ~/.dotfiles"
 # common.nix points its mkOutOfStoreSymlink paths at ~/.dotfiles. The symlinks
 # are created with a literal target, so this link must exist (and point here)
 # or the resulting ~/.config symlinks would dangle until it did.
+if [ -e ~/.dotfiles ] && [ ! -L ~/.dotfiles ]; then
+  echo "    ~/.dotfiles exists and is not a symlink, so it cannot be pointed at $DIR."
+  echo "    Move it out of the way (mv ~/.dotfiles ~/.dotfiles.old) and run again."
+  exit 1
+fi
 ln -sfn "$DIR" ~/.dotfiles
 
 echo "==> Step 3: personalize the configured username"

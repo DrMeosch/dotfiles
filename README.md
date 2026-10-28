@@ -46,6 +46,7 @@ home/
   workflows/ci.yml   # CI: make + smoke test on Ubuntu, Arch, and Ubuntu on WSL2
   scripts/smoke-test.sh
   scripts/test-detect-target.sh
+  scripts/test-make-update.sh
 ```
 
 Config files are symlinked **out of the Nix store** (`mkOutOfStoreSymlink`), so you can edit
@@ -164,7 +165,8 @@ and the `wsl` alias) without building or applying anything.
 `.github/scripts/smoke-test.sh` (tools on `PATH` from the Nix profile, linked files resolve into the repo,
 tmux loads `~/.tmux.conf` without errors, `nvim --headless +qa` exits 0). The Ubuntu job also runs
 `make help` and `make check`, plus `.github/scripts/test-detect-target.sh`, which checks the four-way
-target detection (including WSL2 Arch) against fixture files. Jobs: `ubuntu` (ubuntu-latest), `arch`
+target detection (including WSL2 Arch and Arch/Ubuntu derivatives) against fixture files, and
+`.github/scripts/test-make-update.sh`, which drives `make update` against a throwaway origin. Jobs: `ubuntu` (ubuntu-latest), `arch`
 (archlinux container) and `wsl` (Ubuntu 24.04 on real WSL2 on windows-latest, target `wsl-ubuntu`). Arch under WSL2 is not run
 on a real WSL2 Arch distro in CI; its detection is covered by the fixture test and its configuration by
 `make check`.
@@ -192,7 +194,7 @@ settings.user.email = "you@example.com";
 ## Notes per target
 
 - **Arch / Ubuntu desktop**: import `gui.nix`, so you get Alacritty and the Hack Nerd Font. Set your terminal font to "Hack Nerd Font".
-- **WSL2 (Ubuntu or Arch)**: no local display, so no Alacritty/fonts. Set the font and colors in **Windows Terminal** on the host side. Neovim copies to the Windows clipboard via `win32yank`, which you install on the Windows side (`winget install equalsraf.win32yank`; it is not in nixpkgs for Linux); tmux copies via `clip.exe` through the tmux-yank plugin (it is on `PATH` whenever Windows interop is enabled - the default). For `wslview` as `$BROWSER`, `sudo apt install wslu` and uncomment the line in `home/wsl.nix`.
+- **WSL2 (Ubuntu or Arch)**: no local display, so no Alacritty/fonts. Set the font and colors in **Windows Terminal** on the host side. Neovim copies to the Windows clipboard via `win32yank`, which you install on the Windows side (`winget install equalsraf.win32yank`; it is not in nixpkgs for Linux); tmux copies via `clip.exe` through the tmux-yank plugin (it is on `PATH` whenever Windows interop is enabled - the default). For `wslview` as `$BROWSER`, install `wslu` (Ubuntu: `sudo apt install wslu`; Arch: from the AUR) and uncomment the line in `home/wsl.nix`.
 
 ## Rust
 

@@ -59,12 +59,13 @@ update: ## Pull the latest repo state (fast-forward only), then apply
 	if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then \
 		echo "make update: $(ROOT) is not a git checkout." >&2; exit 1; \
 	fi; \
-	autostash=; \
+	saved=; \
 	if [ -n "$$(git status --porcelain --untracked-files=no)" ]; then \
 		if [ -z "$$(git status --porcelain --untracked-files=no | grep -v ' flake.nix$$')" ] && \
 		   [ -z "$$(git diff -U0 -- flake.nix | grep -E '^[+-][^+-]' | grep -vE '^[+-][[:space:]]*user = ')" ]; then \
-			echo "==> make update: keeping the local user line in flake.nix across the pull"; \
-			autostash=--autostash; \
+			saved=$$(sed -nE 's/^[[:space:]]*user = "([^"]+)";.*/\1/p' flake.nix | head -n1); \
+			echo "==> make update: setting the local user line aside for the pull (\"$$saved\")"; \
+			git checkout -- flake.nix; \
 		else \
 			echo "make update: refusing to pull, there are local changes to tracked files:" >&2; \
 			git status --short --untracked-files=no >&2; \
@@ -72,12 +73,17 @@ update: ## Pull the latest repo state (fast-forward only), then apply
 			exit 1; \
 		fi; \
 	fi; \
+	restore() { \
+		[ -z "$$saved" ] || sed -i -E "s/^([[:space:]]*user = \")[^\"]+(\";.*)/\1$$saved\2/" flake.nix; \
+	}; \
 	echo "==> make update: git pull --ff-only"; \
-	git pull --ff-only $$autostash || { \
+	git pull --ff-only || { \
+		restore; \
 		echo "make update: could not fast-forward (diverged history, detached HEAD, or no upstream)." >&2; \
 		echo "Resolve it with git (e.g. git pull --rebase), then run make again." >&2; \
 		exit 1; \
-	}
+	}; \
+	restore
 	@$(MAKE) --no-print-directory apply
 
 check: ## Evaluate every homeConfiguration without applying anything

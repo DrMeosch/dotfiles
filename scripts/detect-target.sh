@@ -44,7 +44,9 @@ if [ ! -r "$OS_RELEASE" ] && [ -z "${DETECT_OS_RELEASE:-}" ]; then
 fi
 id="" id_like=""
 if [ -r "$OS_RELEASE" ]; then
+  # shellcheck source=/dev/null
   id="$(. "$OS_RELEASE" && echo "${ID:-}")"
+  # shellcheck source=/dev/null
   id_like="$(. "$OS_RELEASE" && echo "${ID_LIKE:-}")"
 fi
 

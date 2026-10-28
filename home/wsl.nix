@@ -10,7 +10,7 @@
   # not packaged in nixpkgs for Linux, so it cannot be installed from here.
 
   # Open Linux-side URLs in the Windows default browser when wslu is installed
-  # (sudo apt install wslu). Uncomment if you want it:
+  # (Ubuntu: sudo apt install wslu; Arch: from the AUR). Uncomment if you want it:
   # home.sessionVariables.BROWSER = "wslview";
 
   # tmux copies go to the Windows clipboard via clip.exe through

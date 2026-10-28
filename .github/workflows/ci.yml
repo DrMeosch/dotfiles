@@ -39,19 +39,23 @@ jobs:
       - name: Target detection
         run: ./.github/scripts/test-detect-target.sh
 
+      - name: Make update
+        run: ./.github/scripts/test-make-update.sh
+
       - name: Make help
         run: make help
 
       - name: First run (bootstrap path)
         run: |
           set -o pipefail
-          make YES=1 TARGET=ubuntu 2>&1 | tee "$RUNNER_TEMP/first.log"
+          make YES=1 2>&1 | tee "$RUNNER_TEMP/first.log"
           grep -q 'first run' "$RUNNER_TEMP/first.log"
+          grep -q 'target ubuntu' "$RUNNER_TEMP/first.log"
 
       - name: Second run (rebuild path)
         run: |
           set -o pipefail
-          make TARGET=ubuntu 2>&1 | tee "$RUNNER_TEMP/second.log"
+          make 2>&1 | tee "$RUNNER_TEMP/second.log"
           grep -q 'existing setup found' "$RUNNER_TEMP/second.log"
 
       - name: Make check
@@ -90,13 +94,14 @@ jobs:
       - name: First run (bootstrap path)
         run: |
           set -o pipefail
-          sudo -iu builder make -C "$GITHUB_WORKSPACE" YES=1 TARGET=arch 2>&1 | tee /tmp/first.log
+          sudo -iu builder make -C "$GITHUB_WORKSPACE" YES=1 2>&1 | tee /tmp/first.log
           grep -q 'first run' /tmp/first.log
+          grep -q 'target arch' /tmp/first.log
 
       - name: Second run (rebuild path)
         run: |
           set -o pipefail
-          sudo -iu builder make -C "$GITHUB_WORKSPACE" TARGET=arch 2>&1 | tee /tmp/second.log
+          sudo -iu builder make -C "$GITHUB_WORKSPACE" 2>&1 | tee /tmp/second.log
           grep -q 'existing setup found' /tmp/second.log
 
       - name: Smoke test
