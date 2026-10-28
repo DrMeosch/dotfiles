@@ -14,8 +14,8 @@ home-manager**, which manages your `$HOME` on any distro without needing NixOS.
 A `home-manager switch` builds:
 
 - **Shell**: zsh with autosuggestions, syntax highlighting, fzf keybindings, and a [starship](https://starship.rs/) prompt (no oh-my-zsh, no powerlevel10k)
-- **Multiplexer**: tmux using the [gpakosz](https://github.com/gpakosz/.tmux) config, themed to match, with a `.tmux.conf.local` you own
-- **Editor**: Neovim config (Lua, lazy.nvim, rose-pine moon, LSP pickers via snacks, oil, neogit)
+- **Multiplexer**: tmux (prefix `C-a`, vi keys) with plugins managed by [tpm](https://github.com/tmux-plugins/tpm), which the config clones and installs on first start (needs `git`)
+- **Editor**: [LazyVim](https://www.lazyvim.org/)-based Neovim config (lazy.nvim, neogit, vimwiki, devcontainer LSP, neovide settings)
 - **Terminal**: Alacritty with a collection of color themes (rose-pine moon by default) - desktop targets only
 - **CLI tools**: ripgrep, fd, fzf, jq, lazygit, git
 - **Agent configs**: one shared `AGENTS.md` for Claude / Codex / opencode, plus Claude and Pi settings
@@ -32,17 +32,17 @@ home/
   gui.nix            # desktop-only: Alacritty + fonts (arch, ubuntu)
   arch.nix           # Arch-only tweaks
   ubuntu.nix         # Ubuntu-only tweaks
-  wsl.nix            # WSL2: win32yank clipboard bridge, no GUI
+  wsl.nix            # WSL2: no GUI (clipboard bridge notes)
   .config/nvim/      # Neovim config (edited in place)
   .config/alacritty/ # alacritty.toml + themes/
-  .tmux.conf         # vendored gpakosz config (do not edit)
-  .tmux.conf.local   # your tmux overrides (edit this)
+  .tmux.conf         # tmux config (plugins via tpm)
+  .tmux/             # tmux themes (dark/light.conf; current-theme.conf is seeded locally)
   AGENTS.md          # shared agent instructions
   .claude/ .pi/      # agent settings
 ```
 
 Config files are symlinked **out of the Nix store** (`mkOutOfStoreSymlink`), so you can edit
-`home/.config/nvim/...`, `home/.tmux.conf.local`, `home/.config/alacritty/...` in place and the
+`home/.config/nvim/...`, `home/.tmux.conf`, `home/.config/alacritty/...` in place and the
 change takes effect immediately - no rebuild needed. A rebuild is only needed when you change a
 `.nix` file (packages, options).
 
@@ -109,14 +109,14 @@ git config --global user.email you@example.com
 To manage it declaratively instead, add to `home/common.nix` under `programs.git`:
 
 ```nix
-userName = "Your Name";
-userEmail = "you@example.com";
+settings.user.name = "Your Name";
+settings.user.email = "you@example.com";
 ```
 
 ## Notes per target
 
 - **Arch / Ubuntu desktop**: import `gui.nix`, so you get Alacritty and the Hack Nerd Font. Set your terminal font to "Hack Nerd Font".
-- **WSL2**: no local display, so no Alacritty/fonts. Set the font and colors in **Windows Terminal** on the host side. Neovim copies to the Windows clipboard via `win32yank` (installed); tmux copies via `clip.exe`, which the vendored config detects automatically (it is on `PATH` whenever Windows interop is enabled - the default). For `wslview` as `$BROWSER`, `sudo apt install wslu` and uncomment the line in `home/wsl.nix`.
+- **WSL2**: no local display, so no Alacritty/fonts. Set the font and colors in **Windows Terminal** on the host side. Neovim copies to the Windows clipboard via `win32yank`, which you install on the Windows side (`winget install equalsraf.win32yank`; it is not in nixpkgs for Linux); tmux copies via `clip.exe` through the tmux-yank plugin (it is on `PATH` whenever Windows interop is enabled - the default). For `wslview` as `$BROWSER`, `sudo apt install wslu` and uncomment the line in `home/wsl.nix`.
 
 ## Differences from the source repos
 

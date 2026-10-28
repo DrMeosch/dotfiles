@@ -8,3 +8,6 @@ result-*
 # Local, machine-specific, or secret overrides
 .credentials
 *.local.secret
+
+# Private: names a personal Azure OpenAI endpoint. Kept out of this public repo.
+home/.config/nvim/lua/plugins/avante.lua.disabled

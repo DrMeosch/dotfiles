@@ -1,0 +1,48 @@
+local function fetch_and_open_branches()
+  local repo_root = vim.fs.root(0, { ".git" })
+  if not repo_root then
+    vim.notify("The current buffer is not inside a Git repository", vim.log.levels.ERROR)
+    return
+  end
+
+  vim.notify("Fetching origin...", vim.log.levels.INFO)
+
+  vim.system({ "git", "fetch", "origin", "--prune" }, { cwd = repo_root, text = true }, function(result)
+    vim.schedule(function()
+      if result.code ~= 0 then
+        local message = vim.trim(result.stderr or result.stdout or "git fetch failed")
+        vim.notify("Git fetch failed: " .. message, vim.log.levels.ERROR)
+        return
+      end
+
+      vim.notify("Remote branches updated", vim.log.levels.INFO)
+      require("neogit").open({ "branch", cwd = repo_root })
+    end)
+  end)
+end
+
+return {
+  {
+    "NeogitOrg/neogit",
+    cmd = "Neogit",
+    dependencies = {
+      "nvim-lua/plenary.nvim",
+      "sindrets/diffview.nvim",
+    },
+    opts = {
+      auto_refresh = true,
+      filewatcher = { enabled = true },
+      integrations = {
+        diffview = true,
+      },
+    },
+    keys = {
+      { "<leader>gg", "<cmd>Neogit<cr>", desc = "Open Neogit" },
+      {
+        "<leader>gb",
+        fetch_and_open_branches,
+        desc = "Fetch and switch Git branch",
+      },
+    },
+  },
+}
