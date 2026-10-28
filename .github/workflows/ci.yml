@@ -7,6 +7,8 @@
 #   wsl    - Ubuntu 24.04 on real WSL2 (kernel "microsoft-standard-WSL2",
 #            systemd as PID 1) on windows-latest. GitHub-hosted Windows runners
 #            do support WSL2, so no WSL1 fallback is needed.
+#   arch   - archlinux container on ubuntu-latest (no systemd, so Nix's daemon
+#            is started by hand)
 name: CI
 
 on:
