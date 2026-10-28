@@ -243,11 +243,13 @@ function Invoke-WinGetConfiguration([string]$File) {
     if ($LASTEXITCODE -ne 0) { throw "winget configure test still fails after applying (exit code $LASTEXITCODE)" }
 }
 
+# The local copies come first: they cannot fail for network reasons, so a winget
+# failure (no App Installer, offline) does not keep them from being applied.
 function Install-Rendered([string]$Dir) {
-    Invoke-WinGetConfiguration (Join-Path $Dir 'configuration.winget')
     Copy-IfChanged (Join-Path $Dir 'windows-terminal-fragment.json') `
         (Join-Path $env:LOCALAPPDATA 'Microsoft\Windows Terminal\Fragments\dotfiles\dotfiles.json')
     Copy-IfChanged (Join-Path $Dir '.wslconfig') (Join-Path $env:USERPROFILE '.wslconfig') -Backup
+    Invoke-WinGetConfiguration (Join-Path $Dir 'configuration.winget')
 }
 
 # The dot-sourcing guard lets the functions be tested without installing anything.
