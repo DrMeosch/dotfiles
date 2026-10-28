@@ -124,6 +124,6 @@ windows: ## WSL2: render the Windows files and copy them to %USERPROFILE%\.dotfi
 	fi; \
 	rm -rf "$$dest"; mkdir -p "$$dest" || exit 1; \
 	cp -rL --no-preserve=mode,ownership "$$out"/. "$$dest"/ || exit 1; \
-	echo "==> make windows: copied to $$winhome\.dotfiles-windows"; \
-	echo "    Now apply it from PowerShell on Windows:"; \
-	echo "    powershell -ExecutionPolicy Bypass -File $$winhome\.dotfiles-windows\setup.ps1"
+	printf '%s\n' "==> make windows: copied to $$winhome\\.dotfiles-windows"; \
+	printf '%s\n' "    Now apply it from PowerShell on Windows:"; \
+	printf '%s\n' "    powershell -ExecutionPolicy Bypass -File $$winhome\\.dotfiles-windows\\setup.ps1"

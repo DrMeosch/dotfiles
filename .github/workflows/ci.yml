@@ -181,7 +181,9 @@ jobs:
         run: |
           set -o pipefail
           make -C ~/dotfiles windows 2>&1 | tee /tmp/windows.log
-          grep -q 'copied to' /tmp/windows.log
+          # The printed path and command must come out intact (dash's echo would mangle the backslashes).
+          grep -qxF '==> make windows: copied to C:\Users\runneradmin\.dotfiles-windows' /tmp/windows.log
+          grep -qxF '    powershell -ExecutionPolicy Bypass -File C:\Users\runneradmin\.dotfiles-windows\setup.ps1' /tmp/windows.log
 
       - name: Check the files landed on the Windows side
         shell: pwsh
