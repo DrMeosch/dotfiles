@@ -154,6 +154,8 @@ What stays manual: installing the distro and creating its first user (step 2), a
 
 > `winget configure` only installs and configures; it does **not** uninstall what you later drop from `configuration.winget`. Remove such a package yourself (`winget uninstall <id>`).
 
+> After uninstalling a package by hand, `winget configure` may still report it as present for a while; reinstall it with `winget install <id>`.
+
 ### What the first run does
 
 Through `bootstrap.sh`, in order:
