@@ -14,6 +14,9 @@ printf 'Linux version 5.15.153.1-microsoft-standard-WSL2 (root@x) #1 SMP\n' > "$
 printf 'NAME="Arch Linux"\nID=arch\n' > "$TMP/os-arch"
 printf 'NAME="Ubuntu"\nID=ubuntu\nID_LIKE=debian\n' > "$TMP/os-ubuntu"
 printf 'NAME="Debian GNU/Linux"\nID=debian\n' > "$TMP/os-debian"
+printf 'NAME="EndeavourOS"\nID=endeavouros\nID_LIKE=arch\n' > "$TMP/os-endeavouros"
+printf 'NAME="Linux Mint"\nID=linuxmint\nID_LIKE="ubuntu debian"\n' > "$TMP/os-mint"
+printf 'NAME="Raspbian"\nID=raspbian\nID_LIKE=debian\n' > "$TMP/os-raspbian"
 
 expect() { # expect <want> <proc file> <os-release file>
   local want="$1" got=""
@@ -25,7 +28,12 @@ expect arch proc-native os-arch
 expect ubuntu proc-native os-ubuntu
 expect wsl-arch proc-wsl os-arch
 expect wsl-ubuntu proc-wsl os-ubuntu
+expect arch proc-native os-endeavouros
+expect wsl-arch proc-wsl os-endeavouros
+expect ubuntu proc-native os-mint
+expect wsl-ubuntu proc-wsl os-mint
 expect "(error)" proc-native os-debian
+expect "(error)" proc-native os-raspbian
 expect "(error)" proc-wsl os-debian
 
 # TARGET override: known names pass through, anything else is an error.

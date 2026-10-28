@@ -8,6 +8,9 @@
 #   wsl-arch     Arch Linux under WSL2
 #   wsl-ubuntu   Ubuntu under WSL2
 #
+# The distro is ID from os-release, or else the first of arch/ubuntu in ID_LIKE,
+# so derivatives (EndeavourOS, Manjaro, Pop!_OS, Linux Mint, ...) are detected.
+#
 # Usage: scripts/detect-target.sh [target]
 #   With a target, validates it and prints it back (this is how TARGET=...
 #   overrides detection). "wsl" is accepted as a legacy alias for wsl-ubuntu.
@@ -39,15 +42,26 @@ OS_RELEASE="${DETECT_OS_RELEASE:-/etc/os-release}"
 if [ ! -r "$OS_RELEASE" ] && [ -z "${DETECT_OS_RELEASE:-}" ]; then
   OS_RELEASE=/usr/lib/os-release
 fi
-distro=""
+id="" id_like=""
 if [ -r "$OS_RELEASE" ]; then
-  distro="$(. "$OS_RELEASE" && echo "${ID:-}")"
+  id="$(. "$OS_RELEASE" && echo "${ID:-}")"
+  id_like="$(. "$OS_RELEASE" && echo "${ID_LIKE:-}")"
 fi
+
+distro=""
+for candidate in $id $id_like; do
+  case "$candidate" in
+    arch | ubuntu)
+      distro="$candidate"
+      break
+      ;;
+  esac
+done
 
 case "$distro" in
   arch | ubuntu) ;;
   *)
-    echo "Unsupported distro \"${distro:-unknown}\" (from $OS_RELEASE). Supported: $TARGETS." >&2
+    echo "Unsupported distro \"${id:-unknown}\" (from $OS_RELEASE). Supported: $TARGETS (or derivatives via ID_LIKE)." >&2
     echo "Pass the target explicitly if you know better, e.g. TARGET=arch make." >&2
     exit 1
     ;;

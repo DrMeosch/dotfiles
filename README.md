@@ -75,7 +75,8 @@ whether the machine has been set up before, and says on screen which path it too
 - **Every later run**: runs `rebuild.sh`.
 
 The four targets are told apart in one place, `scripts/detect-target.sh`: WSL2 from `/proc/version`, the distro
-from `ID` in `/etc/os-release`. Anything else (another distro, macOS) stops with an error.
+from `ID` in `/etc/os-release`, falling back to the words of `ID_LIKE` so derivatives (EndeavourOS, Manjaro,
+Pop!_OS, Linux Mint, ...) count as their parent. Anything else (another distro, macOS) stops with an error.
 
 | Machine | Target |
 | --- | --- |
