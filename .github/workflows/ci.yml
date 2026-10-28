@@ -1,14 +1,20 @@
 # Proves the dotfiles really apply on a fresh machine: each job runs the real
-# ./bootstrap.sh (installs Nix, links ~/.dotfiles, first home-manager switch),
-# re-applies with ./rebuild.sh, then runs .github/scripts/smoke-test.sh.
+# `make` twice. The first run must take the bootstrap path (installs Nix, links
+# ~/.dotfiles, first home-manager switch), the second must take the rebuild
+# path. Then .github/scripts/smoke-test.sh runs. Neither `make` step puts Nix on
+# PATH for the step, which is the "fresh shell" situation the Makefile handles.
 #
 # Targets covered:
 #   ubuntu - ubuntu-latest runner
-#   wsl    - Ubuntu 24.04 on real WSL2 (kernel "microsoft-standard-WSL2",
-#            systemd as PID 1) on windows-latest. GitHub-hosted Windows runners
-#            do support WSL2, so no WSL1 fallback is needed.
 #   arch   - archlinux container on ubuntu-latest (no systemd, so Nix's daemon
 #            is started by hand)
+#   wsl    - Ubuntu 24.04 on real WSL2 (kernel "microsoft-standard-WSL2",
+#            systemd as PID 1) on windows-latest. GitHub-hosted Windows runners
+#            do support WSL2, so no WSL1 fallback is needed. Target: wsl-ubuntu.
+# Arch under WSL2 (wsl-arch) is not run on a real WSL2 distro: there is no
+# reliable way to install an Arch WSL distro on the Windows runner. Its target
+# detection is checked by test-detect-target.sh and its configuration by
+# `make check`.
 name: CI
 
 on:
@@ -30,11 +36,26 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
 
-      - name: Bootstrap (ubuntu)
-        run: ./bootstrap.sh --yes ubuntu
+      - name: Target detection
+        run: ./.github/scripts/test-detect-target.sh
 
-      - name: Rebuild
-        run: PATH="$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$PATH" ./rebuild.sh ubuntu
+      - name: Make help
+        run: make help
+
+      - name: First run (bootstrap path)
+        run: |
+          set -o pipefail
+          make YES=1 TARGET=ubuntu 2>&1 | tee "$RUNNER_TEMP/first.log"
+          grep -q 'first run' "$RUNNER_TEMP/first.log"
+
+      - name: Second run (rebuild path)
+        run: |
+          set -o pipefail
+          make TARGET=ubuntu 2>&1 | tee "$RUNNER_TEMP/second.log"
+          grep -q 'existing setup found' "$RUNNER_TEMP/second.log"
+
+      - name: Make check
+        run: make check
 
       - name: Smoke test
         run: ./.github/scripts/smoke-test.sh
@@ -45,7 +66,7 @@ jobs:
     container: archlinux:latest
     steps:
       - name: Install prerequisites
-        run: pacman -Syu --noconfirm --needed git curl sudo
+        run: pacman -Syu --noconfirm --needed git curl sudo make
 
       - uses: actions/checkout@v7.0.1
 
@@ -66,11 +87,17 @@ jobs:
           setsid /nix/var/nix/profiles/default/bin/nix-daemon > /tmp/nix-daemon.log 2>&1 < /dev/null &
           until [ -S /nix/var/nix/daemon-socket/socket ]; do sleep 1; done
 
-      - name: Bootstrap (arch)
-        run: sudo -iu builder env PATH="/nix/var/nix/profiles/default/bin:/usr/bin" "$GITHUB_WORKSPACE/bootstrap.sh" --yes arch
+      - name: First run (bootstrap path)
+        run: |
+          set -o pipefail
+          sudo -iu builder make -C "$GITHUB_WORKSPACE" YES=1 TARGET=arch 2>&1 | tee /tmp/first.log
+          grep -q 'first run' /tmp/first.log
 
-      - name: Rebuild
-        run: sudo -iu builder env PATH="/home/builder/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/usr/bin" "$GITHUB_WORKSPACE/rebuild.sh" arch
+      - name: Second run (rebuild path)
+        run: |
+          set -o pipefail
+          sudo -iu builder make -C "$GITHUB_WORKSPACE" TARGET=arch 2>&1 | tee /tmp/second.log
+          grep -q 'existing setup found' /tmp/second.log
 
       - name: Smoke test
         run: sudo -iu builder "$GITHUB_WORKSPACE/.github/scripts/smoke-test.sh"
@@ -93,7 +120,7 @@ jobs:
         with:
           distribution: Ubuntu-24.04
           wsl-version: 2
-          additional-packages: curl git ca-certificates sudo
+          additional-packages: curl git ca-certificates sudo make
 
       # Bootstrap needs a regular user (the home directory is /home/<user>). Make
       # it the distro's default user, as on a real install, and restart the
@@ -121,11 +148,18 @@ jobs:
           git -C ~/dotfiles fetch --depth 1 "$REPO_URL" "$REPO_SHA"
           git -C ~/dotfiles checkout --detach FETCH_HEAD
 
-      - name: Bootstrap (wsl)
-        run: ~/dotfiles/bootstrap.sh --yes wsl
+      - name: First run (bootstrap path)
+        run: |
+          set -o pipefail
+          make -C ~/dotfiles YES=1 2>&1 | tee /tmp/first.log
+          grep -q 'first run' /tmp/first.log
+          grep -q 'target wsl-ubuntu' /tmp/first.log
 
-      - name: Rebuild
-        run: PATH="$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$PATH" ~/dotfiles/rebuild.sh wsl
+      - name: Second run (rebuild path)
+        run: |
+          set -o pipefail
+          make -C ~/dotfiles 2>&1 | tee /tmp/second.log
+          grep -q 'existing setup found' /tmp/second.log
 
       - name: Smoke test
         run: ~/dotfiles/.github/scripts/smoke-test.sh

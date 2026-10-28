@@ -1,6 +1,6 @@
 { ... }:
 
-# Ubuntu on WSL2. No local display, so no Alacritty/fonts (gui.nix is not
+# Ubuntu or Arch under WSL2. No local display, so no Alacritty/fonts (gui.nix is not
 # imported for this target). The terminal is Windows Terminal on the host side;
 # set the font and theme there.
 {
