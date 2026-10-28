@@ -10,10 +10,11 @@
 
     1. downloads the pinned Nerd Fonts release of GeistMono and verifies its SHA-256,
     2. copies the TTF/OTF files to %LOCALAPPDATA%\Microsoft\Windows\Fonts and
-       registers them under HKCU (the per-user font mechanism of Windows 10 1809+),
+       registers them under HKCU (the per-user font mechanism of Windows 10 1809+)
+       and loads them into the running session, so no sign-out is needed,
     3. for each Windows Terminal settings.json found (stable, preview, unpackaged):
-       backs it up, then sets profiles.defaults.font.face (and the font of any
-       WSL profile that overrides it) to the font. Skipped when already set.
+       backs it up, then sets profiles.defaults.font.face to the font. Skipped
+       when already set; profiles with their own font keep it.
 
   The font is the same Nerd Fonts release that nixpkgs ships to Arch and Ubuntu
   (nerd-fonts.geist-mono), so the glyphs match on every target.
@@ -39,6 +40,13 @@ $FilePattern = 'GeistMonoNerdFont-*.otf'
 
 $FontDir = Join-Path $env:LOCALAPPDATA 'Microsoft\Windows\Fonts'
 $RegKey  = 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts'
+
+Add-Type -Namespace Win32 -Name Fonts -MemberDefinition @'
+[DllImport("gdi32.dll", CharSet = CharSet.Unicode)]
+public static extern int AddFontResourceW(string path);
+[DllImport("user32.dll", CharSet = CharSet.Unicode)]
+public static extern IntPtr SendMessageTimeoutW(IntPtr hWnd, uint msg, UIntPtr wParam, IntPtr lParam, uint flags, uint timeout, out UIntPtr result);
+'@
 
 function Install-Fonts {
     $work = Join-Path ([IO.Path]::GetTempPath()) ("geistmono-" + [Guid]::NewGuid().ToString('N'))
@@ -71,7 +79,11 @@ function Install-Fonts {
             }
             $name = [IO.Path]::GetFileNameWithoutExtension($f.Name) + ' (OpenType)'
             New-ItemProperty -Path $RegKey -Name $name -Value $dest -PropertyType String -Force | Out-Null
+            if ([Win32.Fonts]::AddFontResourceW($dest) -eq 0) { Write-Warning "Windows could not load $dest now; it will be available after the next sign-in." }
         }
+        # WM_FONTCHANGE to all top-level windows, so running apps re-read the font list.
+        $r = [UIntPtr]::Zero
+        [void][Win32.Fonts]::SendMessageTimeoutW([IntPtr]0xffff, 0x001D, [UIntPtr]::Zero, [IntPtr]::Zero, 2, 1000, [ref]$r)
         Write-Host "Installed $($fonts.Count) font files to $FontDir"
     }
     finally {
@@ -153,27 +165,15 @@ function Set-TerminalFont([string]$Path) {
         $settings | Add-Member -NotePropertyName 'profiles' -NotePropertyValue ([pscustomobject]@{})
     }
 
-    # "profiles" is {defaults, list} in current Windows Terminal; very old files use a bare list.
-    $changed = $false
-    $list = @()
+    # "profiles" is {defaults, list} in current Windows Terminal; very old files use a bare list, which has no defaults.
     if ($settings.profiles -is [array]) {
-        $list = $settings.profiles
+        Write-Warning "Legacy settings.json format (profiles is a list, no defaults); font not set in $Path - set it per profile by hand."
+        return
     }
-    else {
-        if (-not $settings.profiles.PSObject.Properties['defaults'] -or $null -eq $settings.profiles.defaults) {
-            $settings.profiles | Add-Member -NotePropertyName 'defaults' -NotePropertyValue ([pscustomobject]@{})
-        }
-        if (Set-FontFace $settings.profiles.defaults $FontFace) { $changed = $true }
-        if ($settings.profiles.PSObject.Properties['list']) { $list = @($settings.profiles.list) }
+    if (-not $settings.profiles.PSObject.Properties['defaults'] -or $null -eq $settings.profiles.defaults) {
+        $settings.profiles | Add-Member -NotePropertyName 'defaults' -NotePropertyValue ([pscustomobject]@{})
     }
-    # A WSL profile with its own font would win over the default: keep it in step.
-    foreach ($p in $list) {
-        $isWsl = ($p.PSObject.Properties['source'] -and $p.source -eq 'Windows.Terminal.Wsl') -or
-                 ($p.PSObject.Properties['commandline'] -and $p.commandline -match '(^|[\\/ ])wsl(\.exe)?(\s|$)')
-        if ($isWsl -and $p.PSObject.Properties['font'] -and $p.font -and $p.font.PSObject.Properties['face']) {
-            if (Set-FontFace $p $FontFace) { $changed = $true }
-        }
-    }
+    $changed = Set-FontFace $settings.profiles.defaults $FontFace
 
     if (-not $changed) {
         Write-Host "Already set, nothing to do: $Path"

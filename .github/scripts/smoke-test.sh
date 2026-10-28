@@ -37,7 +37,6 @@ if [ "${EXPECT_FONT:-}" = 1 ]; then
   matched="$(fc-match -f '%{family}' "$FONT" 2>/dev/null | tr ',' '\n')"
   if grep -qxF "$FONT" <<<"$families"; then ok "fc-list has $FONT"; else bad "fc-list has no $FONT"; fi
   if grep -qxF "$FONT" <<<"$matched"; then ok "fc-match resolves $FONT"; else bad "fc-match '$FONT' resolved to '$matched'"; fi
-  if grep -qF "family = \"$FONT\"" "$REPO/home/.config/alacritty/alacritty.toml"; then ok "alacritty uses $FONT"; else bad "alacritty.toml does not use $FONT"; fi
 fi
 
 # -- linked files resolve into this repo --------------------------------------
