@@ -32,7 +32,7 @@ home/
   gui.nix            # desktop-only: Alacritty + fonts (arch, ubuntu)
   arch.nix           # Arch-only tweaks
   ubuntu.nix         # Ubuntu-only tweaks
-  wsl.nix            # WSL2: win32yank clipboard bridge, no GUI
+  wsl.nix            # WSL2: no GUI (clipboard bridge notes)
   .config/nvim/      # Neovim config (edited in place)
   .config/alacritty/ # alacritty.toml + themes/
   .tmux.conf         # tmux config (plugins via tpm)
@@ -116,7 +116,7 @@ settings.user.email = "you@example.com";
 ## Notes per target
 
 - **Arch / Ubuntu desktop**: import `gui.nix`, so you get Alacritty and the Hack Nerd Font. Set your terminal font to "Hack Nerd Font".
-- **WSL2**: no local display, so no Alacritty/fonts. Set the font and colors in **Windows Terminal** on the host side. Neovim copies to the Windows clipboard via `win32yank` (installed); tmux copies via `clip.exe` through the tmux-yank plugin (it is on `PATH` whenever Windows interop is enabled - the default). For `wslview` as `$BROWSER`, `sudo apt install wslu` and uncomment the line in `home/wsl.nix`.
+- **WSL2**: no local display, so no Alacritty/fonts. Set the font and colors in **Windows Terminal** on the host side. Neovim copies to the Windows clipboard via `win32yank`, which you install on the Windows side (`winget install equalsraf.win32yank`; it is not in nixpkgs for Linux); tmux copies via `clip.exe` through the tmux-yank plugin (it is on `PATH` whenever Windows interop is enabled - the default). For `wslview` as `$BROWSER`, `sudo apt install wslu` and uncomment the line in `home/wsl.nix`.
 
 ## Differences from the source repos
 
