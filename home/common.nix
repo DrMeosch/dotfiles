@@ -26,11 +26,16 @@ in
     lazygit
     neovim
     tmux
+    rustup    # rust toolchains (cargo, rustc); rust-analyzer via `rustup component add`
+    tree-sitter  # nvim-treesitter needs the CLI; otherwise LazyVim installs it via mason on first start
     # Note: fzf, git and starship are installed by their programs.* blocks below,
     # so they are not repeated here.
   ];
 
   home.sessionVariables.EDITOR = "nvim";
+
+  # cargo install puts binaries here (rustup's proxies come from the rustup package itself).
+  home.sessionPath = [ "${config.home.homeDirectory}/.cargo/bin" ];
 
   programs.zsh = {
     enable = true;
