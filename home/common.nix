@@ -1,4 +1,4 @@
-{ config, pkgs, user, ... }:
+{ config, lib, pkgs, user, ... }:
 
 let
   # Config files live in the repo and are symlinked out of the Nix store so you
@@ -93,15 +93,20 @@ in
 
   # tmux: config plus the theme files it sources. ~/.tmux/ itself stays a real
   # directory because tpm clones its plugins into ~/.tmux/plugins (the config
-  # bootstraps tpm on first start), so only the theme files are linked.
+  # bootstraps tpm on first start), so only dark.conf and light.conf are linked.
+  # current-theme.conf is mutable state (a theme switcher rewrites it), so it is
+  # seeded from dark.conf once.
   home.file.".tmux.conf".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.tmux.conf";
-  home.file.".tmux/current-theme.conf".source =
-    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.tmux/current-theme.conf";
   home.file.".tmux/dark.conf".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.tmux/dark.conf";
   home.file.".tmux/light.conf".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.tmux/light.conf";
+  home.activation.tmuxCurrentTheme = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    if [ ! -e "$HOME/.tmux/current-theme.conf" ]; then
+      $DRY_RUN_CMD cp "${dotfiles}/home/.tmux/dark.conf" "$HOME/.tmux/current-theme.conf"
+    fi
+  '';
 
   # Shared agent instructions for Claude / Codex / opencode, plus Claude settings.
   home.file.".claude/settings.json".source =
