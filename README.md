@@ -39,6 +39,9 @@ home/
   .tmux/             # tmux themes (dark/light.conf; current-theme.conf is seeded locally)
   AGENTS.md          # shared agent instructions
   .claude/ .pi/      # agent settings
+.github/
+  workflows/ci.yml   # CI: bootstrap + smoke test on Ubuntu, Arch, and Ubuntu on WSL2
+  scripts/smoke-test.sh
 ```
 
 Config files are symlinked **out of the Nix store** (`mkOutOfStoreSymlink`), so you can edit
@@ -63,7 +66,7 @@ cd ~/dotfiles
 
 1. Installs [Determinate Nix](https://github.com/DeterminateSystems/nix-installer) if `nix` isn't present (flakes enabled).
 2. Symlinks this repo to `~/.dotfiles` (the config resolves edit-in-place paths through it).
-3. Checks the `user` in `flake.nix` against your login name and offers to fix it.
+3. Checks the `user` in `flake.nix` against your login name and offers to fix it (`./bootstrap.sh --yes` accepts without asking, for unattended runs).
 4. Runs the first `home-manager switch` for the detected target (existing files are backed up as `*.bak`).
 
 Then make zsh your login shell - home-manager installs zsh but cannot change your shell on a non-NixOS distro:
@@ -92,6 +95,14 @@ Edit files in the repo, then apply:
 nix flake check
 nix build .#homeConfigurations.arch.activationPackage --dry-run   # or ubuntu / wsl
 ```
+
+### CI
+
+`.github/workflows/ci.yml` runs the real `bootstrap.sh --yes` on every push to `master` and every pull
+request, then `rebuild.sh`, then `.github/scripts/smoke-test.sh` (tools on `PATH` from the Nix profile,
+linked files resolve into the repo, tmux loads `~/.tmux.conf` without errors, `nvim --headless +qa`
+exits 0). Jobs: `ubuntu` (ubuntu-latest), `arch` (archlinux container) and `wsl` (Ubuntu 24.04 on
+real WSL2 on windows-latest).
 
 ## Make it yours
 
