@@ -1,7 +1,8 @@
 <#
 .SYNOPSIS
-  Installs the Geist Mono Nerd Font for the current Windows user and makes
-  Windows Terminal use it. No admin rights needed. Safe to run twice.
+  Sets up the Windows side of a WSL2 machine: Nerd Font, WinGet packages,
+  Windows Terminal color scheme and profile, and .wslconfig. No admin rights
+  needed unless a WinGet package asks for them. Safe to run twice.
 
 .DESCRIPTION
   On WSL the text is drawn by Windows Terminal with Windows' own fonts, so the
@@ -14,7 +15,17 @@
        and loads them into the running session, so no sign-out is needed,
     3. for each Windows Terminal settings.json found (stable, preview, unpackaged):
        backs it up, then sets profiles.defaults.font.face to the font. Skipped
-       when already set; profiles with their own font keep it.
+       when already set; profiles with their own font keep it,
+    4. applies the files the flake renders (`make windows` in WSL copies them to
+       %USERPROFILE%\.dotfiles-windows, next to this script):
+         configuration.winget            `winget configure test`, then `winget configure`
+                                         when something is not in the desired state
+                                         (this is what installs win32yank)
+         windows-terminal-fragment.json  copied to %LOCALAPPDATA%\Microsoft\Windows Terminal\
+                                         Fragments\dotfiles\ (color scheme + profile)
+         .wslconfig                      copied to %USERPROFILE%\.wslconfig (an existing,
+                                         different file is kept as .wslconfig.bak-<timestamp>)
+       Without them, only steps 1-3 run.
 
   The font is the same Nerd Fonts release that nixpkgs ships to Arch and Ubuntu
   (nerd-fonts.geist-mono), so the glyphs match on every target.
@@ -22,10 +33,17 @@
   Windows Terminal's settings.json may contain comments; they are not kept when
   the file is rewritten, which is what the backup is for.
 
+  winget configure does not uninstall what is later dropped from
+  configuration.winget; remove such packages by hand (winget uninstall).
+
   Run from PowerShell:   powershell -ExecutionPolicy Bypass -File windows\setup.ps1
+
+.PARAMETER Source
+  Folder with the rendered files. Defaults to the folder of this script when it
+  holds configuration.winget, else %USERPROFILE%\.dotfiles-windows.
 #>
 [CmdletBinding()]
-param()
+param([string]$Source)
 
 $ErrorActionPreference = 'Stop'
 
@@ -186,6 +204,50 @@ function Set-TerminalFont([string]$Path) {
     Write-Host "Set font to '$FontFace' in $Path (backup: $backup)"
 }
 
+# Copies $From to $To unless it is already there with the same content. With
+# -Backup an existing, different file is kept as <name>.bak-<timestamp>.
+function Copy-IfChanged([string]$From, [string]$To, [switch]$Backup) {
+    New-Item -ItemType Directory -Path (Split-Path $To) -Force | Out-Null
+    if (Test-Path $To) {
+        if ((Get-FileHash $To -Algorithm SHA256).Hash -eq (Get-FileHash $From -Algorithm SHA256).Hash) {
+            Write-Host "Already up to date: $To"
+            return
+        }
+        if ($Backup) {
+            $bak = "$To.bak-" + (Get-Date -Format 'yyyyMMdd-HHmmss')
+            Copy-Item -Path $To -Destination $bak
+            Write-Host "Backed up $To to $bak"
+        }
+    }
+    Copy-Item -Path $From -Destination $To -Force
+    Write-Host "Wrote $To"
+}
+
+# `winget configure test` first: nothing to do (and no changes) when the machine
+# already matches the file. Otherwise apply it, then test again.
+function Invoke-WinGetConfiguration([string]$File) {
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+        throw "winget not found. Install 'App Installer' from the Microsoft Store, then run this script again."
+    }
+    $common = @('--file', $File, '--disable-interactivity')
+    & winget configure test @common
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "WinGet configuration already in the desired state"
+        return
+    }
+    & winget configure @common --accept-configuration-agreements
+    if ($LASTEXITCODE -ne 0) { throw "winget configure failed (exit code $LASTEXITCODE)" }
+    & winget configure test @common
+    if ($LASTEXITCODE -ne 0) { throw "winget configure test still fails after applying (exit code $LASTEXITCODE)" }
+}
+
+function Install-Rendered([string]$Dir) {
+    Invoke-WinGetConfiguration (Join-Path $Dir 'configuration.winget')
+    Copy-IfChanged (Join-Path $Dir 'windows-terminal-fragment.json') `
+        (Join-Path $env:LOCALAPPDATA 'Microsoft\Windows Terminal\Fragments\dotfiles\dotfiles.json')
+    Copy-IfChanged (Join-Path $Dir '.wslconfig') (Join-Path $env:USERPROFILE '.wslconfig') -Backup
+}
+
 # The dot-sourcing guard lets the functions be tested without installing anything.
 if ($MyInvocation.InvocationName -ne '.') {
     Install-Fonts
@@ -201,5 +263,16 @@ if ($MyInvocation.InvocationName -ne '.') {
     }
     foreach ($path in $found) { Set-TerminalFont $path }
 
-    Write-Host "Done. Restart Windows Terminal to pick up the font."
+    if (-not $Source) {
+        $Source = if (Test-Path (Join-Path $PSScriptRoot 'configuration.winget')) { $PSScriptRoot }
+                  else { Join-Path $env:USERPROFILE '.dotfiles-windows' }
+    }
+    if (Test-Path (Join-Path $Source 'configuration.winget')) {
+        Install-Rendered $Source
+        Write-Host "Done. Restart Windows Terminal; run 'wsl --shutdown' for .wslconfig changes to take effect."
+    }
+    else {
+        Write-Host "No rendered files in $Source. In WSL run 'make windows', then run this script again to apply them."
+        Write-Host "Done with the font. Restart Windows Terminal to pick it up."
+    }
 }

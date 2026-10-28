@@ -47,5 +47,9 @@
         # Legacy name from when there was a single WSL2 target (it was Ubuntu).
         wsl = configs.wsl-ubuntu;
       };
+
+      # The Windows-side files for a WSL2 machine (WinGet configuration, Windows
+      # Terminal fragment, .wslconfig, setup.ps1). See windows/default.nix.
+      packages.${system}.windows = import ./windows { inherit pkgs; };
     };
 }
