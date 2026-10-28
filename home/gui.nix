@@ -9,7 +9,7 @@ in
   home.packages = with pkgs; [
     alacritty
     nerd-fonts.hack  # the font Alacritty and Neovim render in
-    # System-clipboard providers: Neovim's `unnamedplus` and tmux's
+    # System-clipboard providers: Neovim's `unnamedplus` and tmux-yank's
     # copy-to-os-clipboard both need one of these on Linux. xclip covers X11,
     # wl-clipboard covers Wayland; having both means yank/copy works whichever
     # session type you log into. (WSL2 uses win32yank/clip.exe instead.)

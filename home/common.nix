@@ -81,7 +81,7 @@ in
   # sets its own. See the README ("Git identity") to manage it declaratively.
   programs.git = {
     enable = true;
-    extraConfig = {
+    settings = {
       init.defaultBranch = "main";
       pull.rebase = true;
     };
@@ -91,11 +91,17 @@ in
   home.file.".config/nvim".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.config/nvim";
 
-  # tmux: vendored gpakosz config + a .local override file you own.
+  # tmux: config plus the theme files it sources. ~/.tmux/ itself stays a real
+  # directory because tpm clones its plugins into ~/.tmux/plugins (the config
+  # bootstraps tpm on first start), so only the theme files are linked.
   home.file.".tmux.conf".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.tmux.conf";
-  home.file.".tmux.conf.local".source =
-    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.tmux.conf.local";
+  home.file.".tmux/current-theme.conf".source =
+    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.tmux/current-theme.conf";
+  home.file.".tmux/dark.conf".source =
+    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.tmux/dark.conf";
+  home.file.".tmux/light.conf".source =
+    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.tmux/light.conf";
 
   # Shared agent instructions for Claude / Codex / opencode, plus Claude settings.
   home.file.".claude/settings.json".source =
