@@ -2,6 +2,10 @@
 # Takes a fresh Linux machine (Arch, Ubuntu, or Ubuntu on WSL2) from nothing to
 # a built standalone home-manager config.
 # Run this once. After it finishes, use ./rebuild.sh for every later change.
+#
+# Usage: ./bootstrap.sh [-y|--yes] [arch|ubuntu|wsl]
+#   -y, --yes   don't prompt: rewrite flake.nix's "user = " line to the current
+#               login name when it differs (for CI and other unattended runs)
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -19,10 +23,16 @@ detect_target() {
   fi
 }
 
+ASSUME_YES=0
+if [ "${1:-}" = "-y" ] || [ "${1:-}" = "--yes" ]; then
+  ASSUME_YES=1
+  shift
+fi
+
 TARGET="${1:-$(detect_target)}"
 if [ -z "$TARGET" ]; then
   echo "Could not auto-detect the target (arch/ubuntu/wsl)."
-  echo "Re-run as: ./bootstrap.sh <arch|ubuntu|wsl>"
+  echo "Re-run as: ./bootstrap.sh [-y] <arch|ubuntu|wsl>"
   exit 1
 fi
 echo "==> Target: $TARGET"
@@ -53,7 +63,10 @@ if [ -z "$FLAKE_USER" ]; then
   exit 1
 elif [ "$FLAKE_USER" != "$REAL_USER" ]; then
   echo "    flake.nix is configured for user \"$FLAKE_USER\", but you are \"$REAL_USER\"."
-  read -r -p "    Rewrite flake.nix's \"user = \" line to \"$REAL_USER\"? [y/N] " REPLY
+  REPLY=y
+  if [ "$ASSUME_YES" -eq 0 ]; then
+    read -r -p "    Rewrite flake.nix's \"user = \" line to \"$REAL_USER\"? [y/N] " REPLY
+  fi
   if [ "$REPLY" = "y" ] || [ "$REPLY" = "Y" ]; then
     sed -i -E "s/^([[:space:]]*user = \")[^\"]+(\";.*)/\1${REAL_USER}\2/" "$DIR/flake.nix"
     echo "    Updated. Review the change with: git -C \"$DIR\" diff flake.nix"
