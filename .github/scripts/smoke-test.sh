@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Checks that a bootstrapped machine really ended up with the dotfiles applied.
-# Run it after ./bootstrap.sh, as the same user, from anywhere.
+# Run it after the first `make` (bootstrap.sh), as the same user, from anywhere.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
