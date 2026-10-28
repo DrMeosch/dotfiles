@@ -1,0 +1,93 @@
+# Proves the dotfiles really apply on a fresh machine: each job runs the real
+# ./bootstrap.sh (installs Nix, links ~/.dotfiles, first home-manager switch),
+# re-applies with ./rebuild.sh, then runs .github/scripts/smoke-test.sh.
+#
+# Targets covered:
+#   ubuntu - ubuntu-latest runner
+#   wsl    - Ubuntu 24.04 on real WSL2 (kernel "microsoft-standard-WSL2",
+#            systemd as PID 1) on windows-latest. GitHub-hosted Windows runners
+#            do support WSL2, so no WSL1 fallback is needed.
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ubuntu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Bootstrap (ubuntu)
+        run: ./bootstrap.sh --yes ubuntu
+
+      - name: Rebuild
+        run: PATH="$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$PATH" ./rebuild.sh ubuntu
+
+      - name: Smoke test
+        run: ./.github/scripts/smoke-test.sh
+
+  wsl:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        # wsl-bash is created by Vampire/setup-wsl; it runs the step in the distro.
+        shell: wsl-bash {0}
+    env:
+      REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+      REPO_SHA: ${{ github.sha }}
+      # Pass these through to the WSL side.
+      WSLENV: REPO_URL:REPO_SHA
+    steps:
+      - name: Install Ubuntu 24.04 on WSL2
+        uses: Vampire/setup-wsl@v7.2.0
+        with:
+          distribution: Ubuntu-24.04
+          wsl-version: 2
+          additional-packages: curl git ca-certificates sudo
+
+      # Bootstrap needs a regular user (the home directory is /home/<user>).
+      - name: Create a regular user
+        run: |
+          useradd --create-home --shell /bin/bash dev
+          echo 'dev ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/dev
+
+      - name: Run the remaining steps as that user
+        uses: Vampire/setup-wsl@v7.2.0
+        with:
+          distribution: Ubuntu-24.04
+          set-as-default: false
+          wsl-shell-user: dev
+
+      - name: Show the environment
+        run: |
+          cat /proc/version
+          echo "pid 1: $(ps -p 1 -o comm=)"
+          id
+
+      # The Windows-side checkout is CRLF on drvfs, so clone inside WSL instead.
+      - name: Clone the repo in WSL
+        run: |
+          git init ~/dotfiles
+          git -C ~/dotfiles fetch --depth 1 "$REPO_URL" "$REPO_SHA"
+          git -C ~/dotfiles checkout --detach FETCH_HEAD
+
+      - name: Bootstrap (wsl)
+        run: ~/dotfiles/bootstrap.sh --yes wsl
+
+      - name: Rebuild
+        run: PATH="$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$PATH" ~/dotfiles/rebuild.sh wsl
+
+      - name: Smoke test
+        run: ~/dotfiles/.github/scripts/smoke-test.sh
