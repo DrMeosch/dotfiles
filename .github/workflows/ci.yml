@@ -54,8 +54,18 @@ jobs:
           echo 'builder ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/builder
           chown -R builder:builder "$GITHUB_WORKSPACE"
 
+      # A container has no systemd, so the Determinate installer sets Nix up
+      # without a daemon service. Install it the way bootstrap.sh does, start
+      # the daemon by hand, then let bootstrap.sh skip its own Nix step.
+      - name: Install Nix and start its daemon
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix \
+            | sh -s -- install --no-confirm
+          setsid /nix/var/nix/profiles/default/bin/nix-daemon > /tmp/nix-daemon.log 2>&1 < /dev/null &
+          until [ -S /nix/var/nix/daemon-socket/socket ]; do sleep 1; done
+
       - name: Bootstrap (arch)
-        run: sudo -iu builder "$GITHUB_WORKSPACE/bootstrap.sh" --yes arch
+        run: sudo -iu builder env PATH="/nix/var/nix/profiles/default/bin:/usr/bin" "$GITHUB_WORKSPACE/bootstrap.sh" --yes arch
 
       - name: Rebuild
         run: sudo -iu builder env PATH="/home/builder/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/usr/bin" "$GITHUB_WORKSPACE/rebuild.sh" arch
