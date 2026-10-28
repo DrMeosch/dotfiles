@@ -45,17 +45,16 @@ check_link ~/.tmux/light.conf home/.tmux/light.conf
 # (no tty here, so zsh warns on stderr that it cannot open a terminal)
 if out="$(zsh -i -c 'command -v starship' 2>/dev/null)" && [ -n "$out" ]; then ok "zsh -i starts and finds starship"; else bad "zsh -i failed"; fi
 
-# -- tmux loads the config without errors -------------------------------------
-# Config errors do not fail tmux's exit status; they land in its message log.
+# -- tmux loads the config without errors ------------------------------------
+# Errors in the -f config are only printed, they do not change the exit status.
+# So load it again with source-file, which does fail (and prints) on any error.
 tmux kill-server 2>/dev/null || true
-if msgs="$(tmux -f ~/.tmux.conf start-server \; show-messages 2>&1)"; then
-  if grep -qiE 'error|unknown|invalid|not found|no such' <<<"$msgs"; then
-    bad "tmux reported problems loading ~/.tmux.conf:"; echo "$msgs"
-  else
-    ok "tmux -f ~/.tmux.conf loads cleanly"
-  fi
+rc=0
+msgs="$(tmux -f ~/.tmux.conf start-server \; source-file ~/.tmux.conf \; kill-server 2>&1)" || rc=$?
+if [ "$rc" -eq 0 ] && ! grep -qiE 'unknown|invalid|ambiguous|error' <<<"$msgs"; then
+  ok "tmux -f ~/.tmux.conf loads cleanly"
 else
-  bad "tmux failed to start: $msgs"
+  bad "tmux had problems loading ~/.tmux.conf (exit $rc):"; echo "$msgs"
 fi
 tmux kill-server 2>/dev/null || true
 

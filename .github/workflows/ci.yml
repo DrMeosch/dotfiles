@@ -37,6 +37,32 @@ jobs:
       - name: Smoke test
         run: ./.github/scripts/smoke-test.sh
 
+  arch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container: archlinux:latest
+    steps:
+      - name: Install prerequisites
+        run: pacman -Syu --noconfirm --needed git curl sudo
+
+      - uses: actions/checkout@v7.0.1
+
+      # Bootstrap needs a regular user (the home directory is /home/<user>).
+      - name: Create a regular user
+        run: |
+          useradd --create-home --shell /bin/bash builder
+          echo 'builder ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/builder
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+
+      - name: Bootstrap (arch)
+        run: sudo -iu builder "$GITHUB_WORKSPACE/bootstrap.sh" --yes arch
+
+      - name: Rebuild
+        run: sudo -iu builder env PATH="/home/builder/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/usr/bin" "$GITHUB_WORKSPACE/rebuild.sh" arch
+
+      - name: Smoke test
+        run: sudo -iu builder "$GITHUB_WORKSPACE/.github/scripts/smoke-test.sh"
+
   wsl:
     runs-on: windows-latest
     timeout-minutes: 45
