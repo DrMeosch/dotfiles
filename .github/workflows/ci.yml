@@ -25,7 +25,9 @@
 # Every job that runs Nix sets NIX_CONFIG to hand Nix the workflow token for
 # github.com. flake.lock pins the inputs, but Nix still downloads them through
 # api.github.com, and unauthenticated calls from a shared runner hit the rate
-# limit (HTTP 403).
+# limit (HTTP 403). CI only reads flake.lock: each of those jobs ends by failing if
+# the lock changed (a missing or stale pin must be fixed in the repo, not silently
+# re-resolved).
 name: CI
 
 on:
@@ -77,6 +79,9 @@ jobs:
       - name: Smoke test
         run: EXPECT_FONT=1 ./.github/scripts/smoke-test.sh
 
+      - name: flake.lock is unchanged
+        run: git diff --exit-code flake.lock
+
   arch:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -121,6 +126,10 @@ jobs:
 
       - name: Smoke test
         run: sudo -iu builder env EXPECT_FONT=1 "$GITHUB_WORKSPACE/.github/scripts/smoke-test.sh"
+
+      # As builder: the workspace is owned by that user, so git trusts it.
+      - name: flake.lock is unchanged
+        run: sudo -iu builder git -C "$GITHUB_WORKSPACE" diff --exit-code flake.lock
 
   wsl:
     runs-on: windows-latest
@@ -205,6 +214,9 @@ jobs:
               if ((Get-Item $p -Force).Length -eq 0) { throw "$p is empty" }
           }
 
+      - name: flake.lock is unchanged
+        run: git -C ~/dotfiles diff --exit-code flake.lock
+
   # The Windows-side files, built from the flake on Linux for the windows job.
   windows-files:
     runs-on: ubuntu-latest
@@ -225,6 +237,9 @@ jobs:
           nix build .#windows --print-build-logs
           # Real files: a store symlink would not survive the upload.
           cp -rL --no-preserve=mode result windows-files
+
+      - name: flake.lock is unchanged
+        run: git diff --exit-code flake.lock
 
       - uses: actions/upload-artifact@v7.0.2
         with:
