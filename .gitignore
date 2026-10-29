@@ -11,3 +11,7 @@ result-*
 
 # Private: names a personal Azure OpenAI endpoint. Kept out of this public repo.
 home/.config/nvim/lua/plugins/avante.lua.disabled
+
+# Copies `make update` keeps of a local flake.lock, and the one-time pre-pin move (see README)
+flake.lock.local-*
+flake.lock.pre-pin

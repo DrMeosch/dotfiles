@@ -11,4 +11,5 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 TARGET="$("$DIR/scripts/detect-target.sh" "${1:-}")"
 echo "==> Target: $TARGET"
 
-exec home-manager switch --flake "$HOME/.dotfiles#$TARGET" -b bak
+# --no-write-lock-file: a machine only reads the committed flake.lock, never rewrites it.
+exec home-manager switch --flake "$HOME/.dotfiles#$TARGET" -b bak --no-write-lock-file
