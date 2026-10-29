@@ -19,13 +19,16 @@ A `home-manager switch` builds:
 - **Terminal**: Alacritty with a collection of color themes (rose-pine moon by default) - desktop targets only
 - **CLI tools**: ripgrep, fd, fzf, jq, lazygit, git, rustup, tree-sitter
 - **Agent configs**: one shared `AGENTS.md` for Claude / Codex / opencode, plus Claude and Pi settings
-- **Font**: Hack Nerd Font (desktop targets)
+- **Font**: [Geist Mono Nerd Font](https://github.com/ryanoasis/nerd-fonts) (family `GeistMono Nerd Font`; Nix on the desktop targets, `windows/setup.ps1` for Windows Terminal on WSL2)
+- **Windows host** (WSL2 machines): the flake also renders the Windows-side files - a WinGet configuration (win32yank), a Windows Terminal color scheme and profile, and a `.wslconfig` - which `windows/setup.ps1` applies; see [WSL2 on Windows 11](#wsl2-on-windows-11-the-windows-host-too)
+
+![Geist Mono Nerd Font: code, a starship prompt and a tmux bar](docs/geist-mono-preview.png)
 
 ## Layout
 
 ```
-Makefile             # the entry point: `make` (apply), `make update`, `make check`
-flake.nix            # homeConfigurations: arch / ubuntu / wsl-arch / wsl-ubuntu (+ the one `user` line)
+Makefile             # the entry point: `make` (apply), `make update`, `make check`, `make windows`
+flake.nix            # homeConfigurations: arch / ubuntu / wsl-arch / wsl-ubuntu, packages.windows (+ the one `user` line)
 bootstrap.sh         # first run (called by make): install Nix, link ~/.dotfiles, first switch
 rebuild.sh           # later runs (called by make): home-manager switch
 scripts/
@@ -43,10 +46,14 @@ home/
   AGENTS.md          # shared agent instructions
   .claude/ .pi/      # agent settings
 .github/
-  workflows/ci.yml   # CI: make + smoke test on Ubuntu, Arch, and Ubuntu on WSL2
+  workflows/ci.yml   # CI: make + smoke test on Ubuntu, Arch, and Ubuntu on WSL2; Windows-side setup
   scripts/smoke-test.sh
   scripts/test-detect-target.sh
   scripts/test-make-update.sh
+windows/
+  default.nix        # renders configuration.winget, the Windows Terminal fragment and .wslconfig
+  setup.ps1          # Windows side of WSL2: font, winget configure, fragment, .wslconfig
+docs/                # preview images
 ```
 
 Config files are symlinked **out of the Nix store** (`mkOutOfStoreSymlink`), so you can edit
@@ -101,8 +108,53 @@ cd ~/dotfiles
 make
 ```
 
-The target is detected as `arch` (desktop: Alacritty and the Hack Nerd Font included). It asks before
+The target is detected as `arch` (desktop: Alacritty and the Geist Mono Nerd Font included). It asks before
 touching `flake.nix` (see below); `make YES=1` skips the question.
+
+### WSL2 on Windows 11 (the Windows host too)
+
+A WSL2 machine has two halves: the Linux distro (everything above) and the Windows host it runs on, where
+the terminal, the font and the clipboard bridge live. Each gets one command:
+
+| Where | Command | What it does |
+| --- | --- | --- |
+| WSL2 distro | `make` | the distro itself: home-manager, as on any other target |
+| WSL2 distro | `make windows` | renders the Windows files with Nix and copies them to `%USERPROFILE%\.dotfiles-windows` |
+| Windows (PowerShell) | `powershell -ExecutionPolicy Bypass -File $env:USERPROFILE\.dotfiles-windows\setup.ps1` | applies them (no admin rights unless a WinGet package asks for them) |
+
+`make windows` copies real files rather than linking them: Windows apps cannot follow `/nix/store` symlinks
+over the WSL file share. The folder holds what the flake renders (`nix build .#windows`, defined in `windows/default.nix`):
+
+- `configuration.winget` - a [WinGet configuration](https://learn.microsoft.com/windows/package-manager/configuration/) (DSC resources). It installs `win32yank`, Neovim's clipboard bridge on WSL2 (not in nixpkgs for Linux). More packages go here.
+- `windows-terminal-fragment.json` - a Windows Terminal [fragment](https://learn.microsoft.com/windows/terminal/json-fragment-extensions): the Rose Pine Moon color scheme (the palette Alacritty uses) and a "WSL (dotfiles)" profile with `GeistMono Nerd Font`.
+- `.wslconfig` - WSL2 settings for `%USERPROFILE%\.wslconfig` (memory is given back to Windows when idle, new virtual disks are sparse).
+- `setup.ps1` - a copy of `windows/setup.ps1`, so the folder is self-contained.
+
+`setup.ps1` does, in order: copies the fragment to `%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\dotfiles\` and `.wslconfig` to
+`%USERPROFILE%\.wslconfig` (an existing, different one is kept as `.wslconfig.bak-<timestamp>`); installs the pinned Geist Mono Nerd Font
+for your user and loads it into the running session; runs `winget configure test` on `configuration.winget` and `winget configure`
+only if something is not in the desired state; and last sets `profiles.defaults.font.face` to `GeistMono Nerd Font` in every Windows
+Terminal `settings.json` it finds (stable, preview and unpackaged installs; a profile that sets its own font keeps it, and a legacy
+file with no `profiles.defaults` only gets a warning; the file is backed up as `settings.json.bak-<timestamp>` first, and comments in
+it are not kept when it is rewritten - the backup has them). A failure in the font install, the winget step or a `settings.json` only
+produces a warning and does not stop the steps after it; the script exits non-zero at the end, after everything else was applied.
+Every step does nothing when already done, so it is safe to run again. `-Source <folder>` points it at another folder with the rendered files.
+
+**On a fresh machine**, in this order:
+
+1. **Windows**: get this repo (`git clone`, or download the zip) and run `powershell -ExecutionPolicy Bypass -File windows\setup.ps1`. With no rendered files yet it installs the font and says so.
+2. **Windows, manual**: `wsl --install -d Ubuntu` (for Arch, install an Arch WSL distro the way you prefer), restart if asked, and create the first user.
+3. **In the distro**: clone the repo, then `make` and `make windows` (Nix is installed on the way).
+4. **Windows**: run `$env:USERPROFILE\.dotfiles-windows\setup.ps1` again, as in the table, then `wsl --shutdown` so `.wslconfig` is picked up, and restart Windows Terminal.
+
+After changing `windows/default.nix` (or `windows/setup.ps1`), run `make windows` in WSL and then `setup.ps1` on Windows again.
+
+What stays manual: installing the distro and creating its first user (step 2), and making the profile the default in Windows Terminal
+(Settings > Startup > Default profile > "WSL (dotfiles)"; a fragment cannot set `defaultProfile`).
+
+> `winget configure` only installs and configures; it does **not** uninstall what you later drop from `configuration.winget`. Remove such a package yourself (`winget uninstall <id>`).
+
+> After uninstalling a package by hand, `winget configure` may still report it as present for a while; reinstall it with `winget install <id>`.
 
 ### What the first run does
 
@@ -155,19 +207,23 @@ history has diverged from the remote. The one local change it tolerates is the `
 make check
 ```
 
-Runs `nix flake check` and evaluates every homeConfiguration (`arch`, `ubuntu`, `wsl-arch`, `wsl-ubuntu`,
-and the `wsl` alias) without building or applying anything.
+Runs `nix flake check`, evaluates every homeConfiguration (`arch`, `ubuntu`, `wsl-arch`, `wsl-ubuntu`,
+and the `wsl` alias) and builds `packages.windows` (the Windows-side files), without applying anything.
 
 ### CI
 
 `.github/workflows/ci.yml` runs the real `make` on every push to `master` and every pull request: a first
 `make` that must take the bootstrap path, then a second `make` that must take the rebuild path, then
 `.github/scripts/smoke-test.sh` (tools on `PATH` from the Nix profile, linked files resolve into the repo,
-tmux loads `~/.tmux.conf` without errors, `nvim --headless +qa` exits 0). The Ubuntu job also runs
+tmux loads `~/.tmux.conf` without errors, `nvim --headless +qa` exits 0; on the desktop targets also that `fc-list` / `fc-match` find `GeistMono Nerd Font`). The Ubuntu job also runs
 `make help` and `make check`, plus `.github/scripts/test-detect-target.sh`, which checks the four-way
 target detection (including WSL2 Arch and Arch/Ubuntu derivatives) against fixture files, and
 `.github/scripts/test-make-update.sh`, which drives `make update` against a throwaway origin. Jobs: `ubuntu` (ubuntu-latest), `arch`
-(archlinux container) and `wsl` (Ubuntu 24.04 on real WSL2 on windows-latest, target `wsl-ubuntu`). Arch under WSL2 is not run
+(archlinux container), `wsl` (Ubuntu 24.04 on real WSL2 on windows-latest, target `wsl-ubuntu`; it also runs `make windows` and checks the
+files arrive on the Windows side as real files), `windows-files` (builds `packages.windows` on Linux and uploads it) and `windows`
+(downloads those files to `%USERPROFILE%\.dotfiles-windows` on windows-latest, runs `winget configure validate` and `winget configure test`
+on `configuration.winget`, runs `windows/setup.ps1` twice (and once more with an unparseable `settings.json`, which must not block the rest), and checks the installed font files and their registration, the edited Windows Terminal settings,
+that win32yank is installed, and that the fragment and `.wslconfig` are in place). Arch under WSL2 is not run
 on a real WSL2 Arch distro in CI; its detection is covered by the fixture test and its configuration by
 `make check`.
 
@@ -193,8 +249,10 @@ settings.user.email = "you@example.com";
 
 ## Notes per target
 
-- **Arch / Ubuntu desktop**: import `gui.nix`, so you get Alacritty and the Hack Nerd Font. Set your terminal font to "Hack Nerd Font".
-- **WSL2 (Ubuntu or Arch)**: no local display, so no Alacritty/fonts. Set the font and colors in **Windows Terminal** on the host side. Neovim copies to the Windows clipboard via `win32yank`, which you install on the Windows side (`winget install equalsraf.win32yank`; it is not in nixpkgs for Linux); tmux copies via `clip.exe` through the tmux-yank plugin (it is on `PATH` whenever Windows interop is enabled - the default). For `wslview` as `$BROWSER`, install `wslu` (Ubuntu: `sudo apt install wslu`; Arch: from the AUR) and uncomment the line in `home/wsl.nix`.
+- **Arch / Ubuntu desktop**: import `gui.nix`, so you get Alacritty and the Geist Mono Nerd Font (`nerd-fonts.geist-mono`, registered with fontconfig by home-manager, so it is there before Alacritty starts). `alacritty.toml` already uses the family `GeistMono Nerd Font`; set the same name in any other terminal. The icons the setup relies on (starship, tmux, Neovim file tree) look like this:
+
+  ![Nerd Font icons](docs/geist-mono-icons.png)
+- **WSL2 (Ubuntu or Arch)**: no local display, so no Alacritty and no fonts from Nix. The text is drawn by **Windows Terminal** with Windows' own fonts, so the Nerd Font icons (starship, tmux, Neovim) show up as boxes until the same font is installed on Windows. `windows/setup.ps1` does that, and installs `win32yank` (Neovim's Windows clipboard bridge, found through Windows interop) and applies the color scheme, profile and `.wslconfig`: see [WSL2 on Windows 11](#wsl2-on-windows-11-the-windows-host-too). tmux copies via `clip.exe` through the tmux-yank plugin (it is on `PATH` whenever Windows interop is enabled - the default). For `wslview` as `$BROWSER`, install `wslu` (Ubuntu: `sudo apt install wslu`; Arch: from the AUR) and uncomment the line in `home/wsl.nix`.
 
 ## Rust
 

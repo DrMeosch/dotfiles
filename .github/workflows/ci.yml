@@ -15,6 +15,12 @@
 # reliable way to install an Arch WSL distro on the Windows runner. Its target
 # detection is checked by test-detect-target.sh and its configuration by
 # `make check`.
+#   windows-files - builds the Windows-side files (packages.windows) on Linux and
+#            hands them to the windows job as an artifact
+#   windows - windows/setup.ps1 on windows-latest: installs the Nerd Font, applies
+#            the rendered configuration.winget (win32yank), the Windows Terminal
+#            fragment and .wslconfig. The wsl job also runs `make windows`, which
+#            copies the same files to the Windows side from inside the distro.
 name: CI
 
 on:
@@ -62,7 +68,7 @@ jobs:
         run: make check
 
       - name: Smoke test
-        run: ./.github/scripts/smoke-test.sh
+        run: EXPECT_FONT=1 ./.github/scripts/smoke-test.sh
 
   arch:
     runs-on: ubuntu-latest
@@ -105,7 +111,7 @@ jobs:
           grep -q 'existing setup found' /tmp/second.log
 
       - name: Smoke test
-        run: sudo -iu builder "$GITHUB_WORKSPACE/.github/scripts/smoke-test.sh"
+        run: sudo -iu builder env EXPECT_FONT=1 "$GITHUB_WORKSPACE/.github/scripts/smoke-test.sh"
 
   wsl:
     runs-on: windows-latest
@@ -168,3 +174,226 @@ jobs:
 
       - name: Smoke test
         run: ~/dotfiles/.github/scripts/smoke-test.sh
+
+      # `make windows` renders the Windows files and copies them (as real files,
+      # not store symlinks) to %USERPROFILE%\.dotfiles-windows.
+      - name: Copy the Windows files (make windows)
+        run: |
+          set -o pipefail
+          make -C ~/dotfiles windows 2>&1 | tee /tmp/windows.log
+          # The printed path and command must come out intact (dash's echo would mangle the backslashes).
+          grep -qxF '==> make windows: copied to C:\Users\runneradmin\.dotfiles-windows' /tmp/windows.log
+          grep -qxF '    powershell -ExecutionPolicy Bypass -File C:\Users\runneradmin\.dotfiles-windows\setup.ps1' /tmp/windows.log
+
+      - name: Check the files landed on the Windows side
+        shell: pwsh
+        run: |
+          foreach ($f in 'configuration.winget', 'windows-terminal-fragment.json', '.wslconfig', 'setup.ps1') {
+              $p = Join-Path $env:USERPROFILE ".dotfiles-windows\$f"
+              if (-not (Test-Path $p -PathType Leaf)) { throw "missing $p" }
+              if ((Get-Item $p -Force).LinkType) { throw "$p is a link, not a copy" }
+              if ((Get-Item $p -Force).Length -eq 0) { throw "$p is empty" }
+          }
+
+  # The Windows-side files, built from the flake on Linux for the windows job.
+  windows-files:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Install Nix
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix \
+            | sh -s -- install --no-confirm
+
+      - name: Build packages.windows
+        run: |
+          . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
+          nix build .#windows --print-build-logs
+          # Real files: a store symlink would not survive the upload.
+          cp -rL --no-preserve=mode result windows-files
+
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: windows-files
+          path: windows-files
+          include-hidden-files: true   # .wslconfig
+          if-no-files-found: error
+
+  # windows/setup.ps1 puts the Nerd Font on the Windows side of WSL2 and applies
+  # the rendered files: winget configure (win32yank), the Windows Terminal
+  # fragment and .wslconfig. Runs in Windows PowerShell 5.1, the one every
+  # Windows has.
+  windows:
+    needs: windows-files
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: powershell
+    env:
+      FONT_FACE: GeistMono Nerd Font
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      # Where `make windows` would have put them.
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: windows-files
+          path: ${{ runner.temp }}\windows-files
+
+      - name: Put the rendered files in place
+        run: |
+          Copy-Item "$env:RUNNER_TEMP\windows-files" "$env:USERPROFILE\.dotfiles-windows" -Recurse
+          Get-ChildItem "$env:USERPROFILE\.dotfiles-windows" -Force | Select-Object Name, Length
+
+      # Hosted Windows images ship an old winget. `winget configure` installs the
+      # latest Microsoft.WinGet.DSC/Client from PSGallery, and in an elevated
+      # session (the runner's) a module newer than App Installer cannot reach it:
+      # "Failed to create instance: -2147023174" (winget-cli#6560). Install the
+      # latest App Installer from its release, in a step of its own so that no
+      # process keeps talking to the old COM server. (Repair-WinGetPackageManager
+      # fails here: it re-registers the image's package, which is not usable.)
+      - name: Update winget (App Installer)
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          $dir = Join-Path $env:RUNNER_TEMP 'winget-release'
+          New-Item -ItemType Directory -Path $dir -Force | Out-Null
+          $base = 'https://github.com/microsoft/winget-cli/releases/latest/download'
+          Invoke-WebRequest "$base/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle" -OutFile "$dir\appinstaller.msixbundle"
+          Invoke-WebRequest "$base/DesktopAppInstaller_Dependencies.zip" -OutFile "$dir\dependencies.zip"
+          Expand-Archive "$dir\dependencies.zip" -DestinationPath "$dir\dependencies" -Force
+          $deps = @(Get-ChildItem "$dir\dependencies\x64" -Filter *.appx | ForEach-Object FullName)
+          Add-AppxPackage -Path "$dir\appinstaller.msixbundle" -DependencyPath $deps -ForceUpdateFromAnyVersion
+          Add-Content -Path $env:GITHUB_PATH -Value "$env:LOCALAPPDATA\Microsoft\WindowsApps"
+
+      - name: winget version
+        run: |
+          # The step's own PATH may not have it yet; look it up.
+          $w = Get-Command winget -ErrorAction SilentlyContinue
+          if (-not $w) { $w = Get-Item "$env:LOCALAPPDATA\Microsoft\WindowsApps\winget.exe" }
+          & $w.Source --version
+
+      - name: winget configure validate
+        run: winget configure validate --file "$env:USERPROFILE\.dotfiles-windows\configuration.winget" --disable-interactivity
+
+      # Not applied yet, so win32yank is missing and the test must say so.
+      - name: winget configure test (before setup, must fail)
+        run: |
+          winget configure test --file "$env:USERPROFILE\.dotfiles-windows\configuration.winget" --disable-interactivity --accept-configuration-agreements
+          if ($LASTEXITCODE -eq 0) { throw "winget configure test passed before anything was applied" }
+          Write-Host "not in the desired state yet, as expected (exit code $LASTEXITCODE)"
+          $global:LASTEXITCODE = 0
+
+      # A settings.json like Windows Terminal writes it: comments, a trailing
+      # comma, and a WSL profile. It sits in the stable-package location.
+      - name: Create a Windows Terminal settings.json and an old .wslconfig
+        run: |
+          $dir = "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState"
+          New-Item -ItemType Directory -Path $dir -Force | Out-Null
+          @'
+          // Windows Terminal settings (test fixture)
+          {
+              "defaultProfile": "{ubuntu}",
+              "profiles": {
+                  "defaults": { "colorScheme": "One Half Dark" },
+                  "list": [
+                      { "guid": "{ubuntu}", "name": "Ubuntu", "source": "Windows.Terminal.Wsl" },
+                      { "guid": "{ps}", "name": "PowerShell", "commandline": "powershell.exe", },
+                  ]
+              },
+          }
+          '@ | Set-Content -Path "$dir\settings.json" -Encoding UTF8
+          "[wsl2]`nmemory=1GB" | Set-Content -Path "$env:USERPROFILE\.wslconfig"
+
+      - name: Run windows/setup.ps1
+        run: .\windows\setup.ps1
+
+      - name: Run it again (must be a no-op)
+        run: |
+          $out = .\windows\setup.ps1 *>&1 | Out-String
+          Write-Host $out
+          foreach ($want in 'already in the desired state', 'Already set, nothing to do') {
+              if ($out -notmatch [regex]::Escape($want)) { throw "second run did not report: $want" }
+          }
+          if ($out -match 'Wrote ') { throw "second run rewrote a file" }
+
+      - name: Assert the font and the settings
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $fontDir = "$env:LOCALAPPDATA\Microsoft\Windows\Fonts"
+          $files = Get-ChildItem $fontDir -Filter 'GeistMonoNerdFont-*.otf'
+          if ($files.Count -ne 9) { throw "expected 9 font files in $fontDir, found $($files.Count)" }
+          $reg = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts'
+          foreach ($f in $files) {
+              $name = $f.BaseName + ' (OpenType)'
+              if ($reg.$name -ne $f.FullName) { throw "$name is not registered for the user" }
+          }
+          # Windows itself must see the family under the name Windows Terminal is given.
+          # FamilyNames is the typographic family (name ID 16); GetFontFamilies and
+          # Win32FamilyNames report the legacy "GeistMono NF" (name ID 1) instead.
+          Add-Type -AssemblyName PresentationCore
+          $regular = Join-Path $fontDir 'GeistMonoNerdFont-Regular.otf'
+          $families = (New-Object Windows.Media.GlyphTypeface([Uri]$regular)).FamilyNames.Values
+          if (-not ($families -match [regex]::Escape($env:FONT_FACE))) { throw "'$env:FONT_FACE' not found in: $($families -join ', ')" }
+
+          $settingsFile = "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json"
+          $s = Get-Content $settingsFile -Raw | ConvertFrom-Json
+          if ($s.profiles.defaults.font.face -ne $env:FONT_FACE) { throw "profiles.defaults.font.face is not set" }
+          if ($s.profiles.defaults.colorScheme -ne 'One Half Dark') { throw "existing settings were lost" }
+          if ($s.profiles.list.Count -ne 2) { throw "profile list was damaged" }
+          $backups = @(Get-ChildItem (Split-Path $settingsFile) -Filter 'settings.json.bak-*')
+          if ($backups.Count -ne 1) { throw "expected exactly 1 backup after two runs, found $($backups.Count)" }
+          if ((Get-Content $backups[0].FullName -Raw) -notmatch 'Windows Terminal settings \(test fixture\)') { throw "backup is not the original file" }
+          Write-Host "font files, registry, settings.json and backup all check out"
+
+      - name: Assert win32yank, the fragment and .wslconfig
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $src = "$env:USERPROFILE\.dotfiles-windows"
+
+          # win32yank is installed (by winget configure) and the configuration now tests clean.
+          winget list --id equalsraf.win32yank --exact --accept-source-agreements --disable-interactivity
+          if ($LASTEXITCODE -ne 0) { throw "win32yank is not installed" }
+          winget configure test --file "$src\configuration.winget" --disable-interactivity --accept-configuration-agreements
+          if ($LASTEXITCODE -ne 0) { throw "winget configure test fails after setup.ps1" }
+
+          # The Windows Terminal fragment is where Windows Terminal looks for it, and is a real file.
+          $frag = "$env:LOCALAPPDATA\Microsoft\Windows Terminal\Fragments\dotfiles\dotfiles.json"
+          if (-not (Test-Path $frag -PathType Leaf)) { throw "missing $frag" }
+          if ((Get-FileHash $frag).Hash -ne (Get-FileHash "$src\windows-terminal-fragment.json").Hash) { throw "fragment differs from the rendered one" }
+          $f = Get-Content $frag -Raw | ConvertFrom-Json
+          if (-not ($f.schemes | Where-Object { $_.name -eq 'Rose Pine Moon' -and $_.background -eq '#232136' })) { throw "fragment lacks the color scheme" }
+          $p = $f.profiles | Where-Object { $_.colorScheme -eq 'Rose Pine Moon' }
+          if ($p.font.face -ne $env:FONT_FACE) { throw "fragment profile does not use $env:FONT_FACE" }
+
+          # .wslconfig is the rendered one; the one that was there before is kept.
+          $wslconfig = "$env:USERPROFILE\.wslconfig"
+          if ((Get-FileHash $wslconfig).Hash -ne (Get-FileHash "$src\.wslconfig").Hash) { throw ".wslconfig differs from the rendered one" }
+          $old = @(Get-ChildItem $env:USERPROFILE -Force -Filter '.wslconfig.bak-*')
+          if ($old.Count -ne 1) { throw "expected exactly 1 .wslconfig backup after two runs, found $($old.Count)" }
+          if ((Get-Content $old[0].FullName -Raw) -notmatch 'memory=1GB') { throw ".wslconfig backup is not the original file" }
+          Write-Host "win32yank, fragment and .wslconfig all check out"
+
+      # An unparseable settings.json must not keep the rest from being applied:
+      # setup.ps1 warns and exits non-zero, but only after winget, the fragment
+      # and .wslconfig are done.
+      - name: A broken settings.json does not block the rest
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $src = "$env:USERPROFILE\.dotfiles-windows"
+          $frag = "$env:LOCALAPPDATA\Microsoft\Windows Terminal\Fragments\dotfiles\dotfiles.json"
+          $dir = "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe\LocalState"
+          New-Item -ItemType Directory -Path $dir -Force | Out-Null
+          Set-Content -Path "$dir\settings.json" -Value '{ "profiles": { "defaults": ' -Encoding UTF8
+          Remove-Item $frag, "$env:USERPROFILE\.wslconfig"
+          $failed = $false
+          try { .\windows\setup.ps1 } catch { $failed = $true; Write-Host "setup.ps1 failed as expected: $($_.Exception.Message)" }
+          if (-not $failed) { throw "setup.ps1 succeeded with an unparseable settings.json" }
+          winget list --id equalsraf.win32yank --exact --accept-source-agreements --disable-interactivity
+          if ($LASTEXITCODE -ne 0) { throw "win32yank is no longer installed" }
+          if ((Get-FileHash $frag).Hash -ne (Get-FileHash "$src\windows-terminal-fragment.json").Hash) { throw "fragment was not applied" }
+          if ((Get-FileHash "$env:USERPROFILE\.wslconfig").Hash -ne (Get-FileHash "$src\.wslconfig").Hash) { throw ".wslconfig was not applied" }
+          Write-Host "everything else was applied despite the broken settings.json"

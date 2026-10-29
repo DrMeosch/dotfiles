@@ -27,6 +27,18 @@ if command -v rustup >/dev/null 2>&1; then
   rustup --version >/dev/null && ok "rustup works" || bad "rustup is broken"
 fi
 
+# -- the Nerd Font is installed and fontconfig resolves it (desktop targets) ---
+# gui.nix is not imported on WSL, so only check where the caller says it is expected.
+if [ "${EXPECT_FONT:-}" = 1 ]; then
+  FONT="GeistMono Nerd Font"
+  # fc-list/fc-match print "Family,Alias" lists; compare whole names. Capture
+  # first: a `| grep -q` would SIGPIPE its producer and fail under pipefail.
+  families="$(fc-list : family 2>/dev/null | tr ',' '\n')"
+  matched="$(fc-match -f '%{family}' "$FONT" 2>/dev/null | tr ',' '\n')"
+  if grep -qxF "$FONT" <<<"$families"; then ok "fc-list has $FONT"; else bad "fc-list has no $FONT"; fi
+  if grep -qxF "$FONT" <<<"$matched"; then ok "fc-match resolves $FONT"; else bad "fc-match '$FONT' resolved to '$matched'"; fi
+fi
+
 # -- linked files resolve into this repo --------------------------------------
 check_link() {
   local link="$1" want="$REPO${2:+/$2}" real
