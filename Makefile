@@ -6,7 +6,7 @@
 #   make                  first run on a machine: bootstrap.sh
 #                         every later run:        rebuild.sh
 #   make update           git pull --ff-only, then make apply
-#                         (sets aside an untracked local flake.lock from before the lock was committed)
+#                         (sets aside a local flake.lock that is untracked or modified, so it cannot block the pull)
 #   make check            evaluate all homeConfigurations and build the Windows files,
 #                         apply nothing
 #   make windows          WSL2 only: render the Windows-side files and copy them to
@@ -64,6 +64,11 @@ update: ## Pull the latest repo state (fast-forward only), then apply
 		echo "make update: $(ROOT) is not a git checkout." >&2; exit 1; \
 	fi; \
 	saved=; lockbak=; \
+	if [ -n "$$(git status --porcelain --untracked-files=no -- flake.lock)" ]; then \
+		lockcopy=flake.lock.local-$$(date +%Y%m%d-%H%M%S); \
+		echo "==> make update: flake.lock differs from the committed one; keeping your copy as $$lockcopy and restoring the committed lock for the pull"; \
+		{ [ ! -e flake.lock ] || cp flake.lock "$$lockcopy"; } && git checkout HEAD -- flake.lock || exit 1; \
+	fi; \
 	if [ -n "$$(git status --porcelain --untracked-files=no)" ]; then \
 		if [ -z "$$(git status --porcelain --untracked-files=no | grep -v ' flake.nix$$')" ] && \
 		   [ -z "$$(git diff -U0 -- flake.nix | grep -E '^[+-][^+-]' | grep -vE '^[+-][[:space:]]*user = ')" ]; then \
@@ -102,14 +107,14 @@ check: ## Evaluate every homeConfiguration and build the Windows files, apply no
 		echo "make check: Nix is not installed yet; run make first." >&2; exit 1; \
 	fi; \
 	echo "==> nix flake check"; \
-	nix flake check "$(ROOT)" || exit 1; \
-	names=$$(nix eval --raw "$(ROOT)#homeConfigurations" --apply 'c: builtins.concatStringsSep " " (builtins.attrNames c)') || exit 1; \
+	nix flake check --no-write-lock-file "$(ROOT)" || exit 1; \
+	names=$$(nix eval --no-write-lock-file --raw "$(ROOT)#homeConfigurations" --apply 'c: builtins.concatStringsSep " " (builtins.attrNames c)') || exit 1; \
 	for name in $$names; do \
 		echo "==> evaluating homeConfigurations.$$name"; \
-		nix eval --raw "$(ROOT)#homeConfigurations.$$name.activationPackage.drvPath" >/dev/null || exit 1; \
+		nix eval --no-write-lock-file --raw "$(ROOT)#homeConfigurations.$$name.activationPackage.drvPath" >/dev/null || exit 1; \
 	done; \
 	echo "==> building packages.windows"; \
-	out=$$(nix build "$(ROOT)#windows" --no-link --print-out-paths) || exit 1; \
+	out=$$(nix build --no-write-lock-file "$(ROOT)#windows" --no-link --print-out-paths) || exit 1; \
 	for f in configuration.winget windows-terminal-fragment.json .wslconfig setup.ps1; do \
 		[ -s "$$out/$$f" ] || { echo "make check: $$out/$$f is missing or empty" >&2; exit 1; }; \
 	done; \
@@ -123,7 +128,7 @@ windows: ## WSL2: render the Windows files and copy them to %USERPROFILE%\.dotfi
 	for tool in nix cmd.exe wslpath; do \
 		command -v $$tool >/dev/null 2>&1 || { echo "make windows: $$tool not found (Nix installed? Windows interop enabled?)" >&2; exit 1; }; \
 	done; \
-	out=$$(nix build "$(ROOT)#windows" --no-link --print-out-paths) || exit 1; \
+	out=$$(nix build --no-write-lock-file "$(ROOT)#windows" --no-link --print-out-paths) || exit 1; \
 	winhome=$$(cd "$$(wslpath -u 'C:\')" && cmd.exe /c 'echo %USERPROFILE%' 2>/dev/null | tr -d '\r'); \
 	dest=$$(wslpath -u "$$winhome" 2>/dev/null)/.dotfiles-windows; \
 	if [ -z "$$winhome" ] || [ "$$dest" = /.dotfiles-windows ]; then \

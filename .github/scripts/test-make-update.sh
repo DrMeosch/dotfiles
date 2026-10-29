@@ -59,6 +59,7 @@ grep -q 'user = "me"' "$TMP/c1/flake.nix" && ok "user line kept" || bad "user li
 if grep -qE '^(<<<<<<<|=======|>>>>>>>)' "$TMP/c1/flake.nix"; then bad "conflict markers in flake.nix"; else ok "no conflict markers"; fi
 [ -z "$(git -C "$TMP/c1" stash list)" ] && ok "no leftover stash" || bad "leftover stash"
 grep -q 'switch' "$TMP/hm.log" && ok "rebuild ran after the pull" || bad "rebuild did not run"
+grep -q -- '--no-write-lock-file' "$TMP/hm.log" && ok "rebuild leaves flake.lock alone" || bad "rebuild may write flake.lock"
 
 # 2. an unrelated local edit is refused and nothing is pulled
 fresh c2
@@ -114,5 +115,27 @@ git -C "$TMP/c6" ls-files --error-unmatch flake.lock >/dev/null 2>&1 && ok "flak
 grep -q 'local' "$TMP/c6/flake.lock.local-backup" && ok "local flake.lock kept as a backup" || bad "local flake.lock backup missing"
 [ -z "$(git -C "$TMP/c6" status --porcelain --untracked-files=no -- flake.lock)" ] && ok "flake.lock matches upstream" || bad "flake.lock modified"
 grep -q 'switch' "$TMP/hm.log" && ok "rebuild ran after the pull" || bad "rebuild did not run"
+
+# 7. a locally modified, tracked flake.lock (e.g. after a stray nix flake update) while upstream changes it:
+#    kept as a copy, the committed one restored, the pull goes through
+fresh c7
+echo '{"edited": "locally"}' > "$TMP/c7/flake.lock"
+rm -rf "$TMP/up"
+git clone -q "$TMP/origin.git" "$TMP/up"
+echo '{"pinned": "newer"}' > "$TMP/up/flake.lock"
+git -C "$TMP/up" commit -qam "bump flake.lock"
+git -C "$TMP/up" push -q origin HEAD:master
+if (cd "$TMP/c7" && make update TARGET=arch >"$TMP/c7.log" 2>&1); then ok "update succeeds with a modified flake.lock"; else bad "update failed"; cat "$TMP/c7.log"; fi
+grep -q 'keeping your copy as flake.lock.local-' "$TMP/c7.log" && ok "the copy is announced" || bad "copy not announced"
+grep -q 'newer' "$TMP/c7/flake.lock" && ok "upstream flake.lock pulled" || bad "upstream flake.lock missing"
+grep -q 'locally' "$TMP"/c7/flake.lock.local-* && ok "local flake.lock kept as a copy" || bad "local flake.lock copy missing"
+[ -z "$(git -C "$TMP/c7" status --porcelain --untracked-files=no -- flake.lock)" ] && ok "flake.lock matches upstream" || bad "flake.lock modified"
+grep -q 'switch' "$TMP/hm.log" && ok "rebuild ran after the pull" || bad "rebuild did not run"
+
+# 8. the same for a flake.lock that was deleted
+fresh c8
+rm "$TMP/c8/flake.lock"
+if (cd "$TMP/c8" && make update TARGET=arch >"$TMP/c8.log" 2>&1); then ok "update succeeds with a deleted flake.lock"; else bad "update failed"; cat "$TMP/c8.log"; fi
+[ -s "$TMP/c8/flake.lock" ] && ok "committed flake.lock restored" || bad "flake.lock missing"
 
 exit "$fail"

@@ -193,6 +193,8 @@ history has diverged from the remote. The one local change it tolerates is the `
 that is only local (a machine set up before the lock was committed) is moved aside to
 `flake.lock.local-backup` for the pull, so it cannot block it; delete the backup afterwards.
 
+`make TARGET=...` and `make YES=1` work with every command.
+
 ### Pinned inputs
 
 `flake.lock` pins `nixpkgs` and `home-manager` to exact revisions, so every machine and every CI run
@@ -204,7 +206,9 @@ make check             # evaluate everything against the new pins
 git add flake.lock && git commit -m "Update flake inputs"
 ```
 
-`make TARGET=...` and `make YES=1` work with every command.
+Machines only pull the lock (`make`, `rebuild.sh` and `bootstrap.sh` pass `--no-write-lock-file`); only the
+machine that runs `nix flake update` commits it. A locally changed `flake.lock` is kept as
+`flake.lock.local-<timestamp>` and the committed one is restored for `make update`.
 
 ### What make calls
 

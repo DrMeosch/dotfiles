@@ -70,7 +70,8 @@ fi
 echo "==> Step 4: first home-manager switch (#$TARGET)"
 # home-manager isn't on PATH yet on a fresh machine, so run it straight from the
 # flake's pinned input this once. After this, rebuild.sh uses the installed home-manager.
-nix run --inputs-from "$HOME/.dotfiles" home-manager#home-manager -- switch --flake "$HOME/.dotfiles#$TARGET" -b bak
+# --no-write-lock-file: a machine only reads the committed flake.lock, never rewrites it.
+nix run --no-write-lock-file --inputs-from "$HOME/.dotfiles" home-manager#home-manager -- switch --flake "$HOME/.dotfiles#$TARGET" -b bak --no-write-lock-file
 
 echo "==> Done."
 echo "    Start a new shell (or: exec zsh) to pick up the new environment."
