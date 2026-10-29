@@ -25,9 +25,9 @@
 # Every job that runs Nix sets NIX_CONFIG to hand Nix the workflow token for
 # github.com. flake.lock pins the inputs, but Nix still downloads them through
 # api.github.com, and unauthenticated calls from a shared runner hit the rate
-# limit (HTTP 403). CI only reads flake.lock: each of those jobs ends by failing if
-# the lock changed (a missing or stale pin must be fixed in the repo, not silently
-# re-resolved).
+# limit (HTTP 403). CI only reads flake.lock: those jobs end with a step that fails
+# if the lock changed, and windows-files builds with --no-update-lock-file, so a
+# lock that does not match flake.nix fails the build instead of being re-resolved.
 name: CI
 
 on:
@@ -234,7 +234,7 @@ jobs:
       - name: Build packages.windows
         run: |
           . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
-          nix build .#windows --print-build-logs
+          nix build --no-update-lock-file .#windows --print-build-logs
           # Real files: a store symlink would not survive the upload.
           cp -rL --no-preserve=mode result windows-files
 

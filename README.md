@@ -189,9 +189,17 @@ make help           # list the commands
 
 `make update` refuses to pull, and says why, when you have local changes to tracked files or your
 history has diverged from the remote. The one local change it tolerates is the `user = ` line in
-`flake.nix` that the first run may have rewritten; that edit is kept across the pull. A `flake.lock`
-that is only local (a machine set up before the lock was committed) is moved aside to
-`flake.lock.local-backup` for the pull, so it cannot block it; delete the backup afterwards.
+`flake.nix` that the first run may have rewritten; that edit is kept across the pull.
+
+**One-time step for a machine set up before `flake.lock` was committed.** Nix stages the lock it wrote
+there (`git add -N`), and the old `make update` refuses to pull over it. Once, run:
+
+```sh
+cd ~/.dotfiles
+git rm --cached -q flake.lock     # drop Nix's staged lock
+mv flake.lock flake.lock.pre-pin  # or delete it
+make update
+```
 
 `make TARGET=...` and `make YES=1` work with every command.
 
