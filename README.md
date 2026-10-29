@@ -301,7 +301,7 @@ Markdown files are made for reading in Neovim:
 
 - vimwiki is limited to its own wiki (`~/vimwiki`, `vim.g.vimwiki_global_ext = 0`). Every other `.md` file opens with the `markdown` filetype, so [render-markdown.nvim](https://github.com/MeanderingProgrammer/render-markdown.nvim) and LazyVim's Markdown settings apply to it. Files under `~/vimwiki` keep the `vimwiki` filetype.
 - LazyVim's Markdown extra is on: browser preview (`<leader>cp`), the render toggle (`<leader>um`), markdownlint diagnostics and the marksman language server.
-- The rendered view stays on in every mode (`render_modes = true`; the line under the cursor shows its raw text) and heading backgrounds span the full window width. The options live in `lua/plugins/markdown.lua`.
+- The rendered view stays on in every mode (`render_modes = true`; the line under the cursor shows its raw text) and every heading level gets a full-width background, a tint of that heading's own colour so it fits the active colour scheme. The options live in `lua/plugins/markdown.lua`.
 
 | Before: vimwiki owns every .md file | After: rendered Markdown |
 | --- | --- |
