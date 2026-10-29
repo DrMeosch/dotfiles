@@ -28,6 +28,8 @@ in
     tmux
     rustup    # rust toolchains (cargo, rustc); rust-analyzer via `rustup component add`
     tree-sitter  # nvim-treesitter needs the CLI; otherwise LazyVim installs it via mason on first start
+    nodejs    # Mason installs markdownlint-cli2 and markdown-toc with npm; markdown-preview runs on it when it has no prebuilt binary
+    marksman  # Markdown language server for Neovim (a .NET binary, so Nix rather than Mason)
     # Note: fzf, git and starship are installed by their programs.* blocks below,
     # so they are not repeated here.
   ];
