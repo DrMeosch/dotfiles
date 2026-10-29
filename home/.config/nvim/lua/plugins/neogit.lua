@@ -1,7 +1,13 @@
+local function open_neogit()
+  local repo_root = require("config.git_root").get()
+  if repo_root then
+    require("neogit").open({ cwd = repo_root })
+  end
+end
+
 local function fetch_and_open_branches()
-  local repo_root = vim.fs.root(0, { ".git" })
+  local repo_root = require("config.git_root").get()
   if not repo_root then
-    vim.notify("The current buffer is not inside a Git repository", vim.log.levels.ERROR)
     return
   end
 
@@ -37,7 +43,7 @@ return {
       },
     },
     keys = {
-      { "<leader>gg", "<cmd>Neogit<cr>", desc = "Open Neogit" },
+      { "<leader>gg", open_neogit, desc = "Open Neogit" },
       {
         "<leader>gb",
         fetch_and_open_branches,
