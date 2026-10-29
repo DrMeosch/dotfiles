@@ -244,7 +244,7 @@ and the `wsl` alias) and builds `packages.windows` (the Windows-side files), wit
 tmux loads `~/.tmux.conf` without errors, `nvim --headless +qa` exits 0; on the desktop targets also that `fc-list` / `fc-match` find `GeistMono Nerd Font`). The Ubuntu job also runs
 `make help` and `make check`, plus `.github/scripts/test-detect-target.sh`, which checks the four-way
 target detection (including WSL2 Arch and Arch/Ubuntu derivatives) against fixture files, and
-`.github/scripts/test-make-update.sh`, which drives `make update` against a throwaway origin. Jobs: `ubuntu` (ubuntu-latest), `arch`
+`.github/scripts/test-make-update.sh`, which drives `make update` against a throwaway origin, and fails if `flake.lock` no longer matches `flake.nix` (a changed input needs a committed lock bump). Jobs: `ubuntu` (ubuntu-latest), `arch`
 (archlinux container), `wsl` (Ubuntu 24.04 on real WSL2 on windows-latest, target `wsl-ubuntu`; it also runs `make windows` and checks the
 files arrive on the Windows side as real files), `windows-files` (builds `packages.windows` on Linux and uploads it) and `windows`
 (downloads those files to `%USERPROFILE%\.dotfiles-windows` on windows-latest, runs `winget configure validate` and `winget configure test`
