@@ -20,6 +20,8 @@ require("lazy").setup({
   spec = {
     -- add LazyVim and import its plugins
     { "LazyVim/LazyVim", import = "lazyvim.plugins" },
+    -- Imported before the local specs so plugins/markdown.lua can override it.
+    { import = "lazyvim.plugins.extras.lang.markdown" },
     -- import/override with your plugins
     { import = "plugins" },
     { import = "lazyvim.plugins.extras.lang.python" },

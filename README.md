@@ -15,9 +15,9 @@ A `home-manager switch` builds:
 
 - **Shell**: zsh with autosuggestions, syntax highlighting, fzf keybindings, and a [starship](https://starship.rs/) prompt (no oh-my-zsh, no powerlevel10k)
 - **Multiplexer**: tmux (prefix `C-a`, vi keys) with plugins managed by [tpm](https://github.com/tmux-plugins/tpm), which the config clones and installs on first start (needs `git`)
-- **Editor**: [LazyVim](https://www.lazyvim.org/)-based Neovim config (lazy.nvim, neogit, vimwiki, devcontainer LSP, neovide settings)
+- **Editor**: [LazyVim](https://www.lazyvim.org/)-based Neovim config (lazy.nvim, neogit, vimwiki, rendered Markdown, devcontainer LSP, neovide settings)
 - **Terminal**: Alacritty with a collection of color themes (rose-pine moon by default) - desktop targets only
-- **CLI tools**: ripgrep, fd, fzf, jq, lazygit, git, rustup, tree-sitter
+- **CLI tools**: ripgrep, fd, fzf, jq, lazygit, git, rustup, tree-sitter, node, marksman
 - **Agent configs**: one shared `AGENTS.md` for Claude / Codex / opencode, plus Claude and Pi settings
 - **Font**: [Geist Mono Nerd Font](https://github.com/ryanoasis/nerd-fonts) (family `GeistMono Nerd Font`; Nix on the desktop targets, `windows/setup.ps1` for Windows Terminal on WSL2)
 - **Windows host** (WSL2 machines): the flake also renders the Windows-side files - a WinGet configuration (win32yank), a Windows Terminal color scheme and profile, and a `.wslconfig` - which `windows/setup.ps1` applies; see [WSL2 on Windows 11](#wsl2-on-windows-11-the-windows-host-too)
@@ -241,7 +241,7 @@ and the `wsl` alias) and builds `packages.windows` (the Windows-side files), wit
 `.github/workflows/ci.yml` runs the real `make` on every push to `master` and every pull request: a first
 `make` that must take the bootstrap path, then a second `make` that must take the rebuild path, then
 `.github/scripts/smoke-test.sh` (tools on `PATH` from the Nix profile, linked files resolve into the repo,
-tmux loads `~/.tmux.conf` without errors, `nvim --headless +qa` exits 0; on the desktop targets also that `fc-list` / `fc-match` find `GeistMono Nerd Font`). The Ubuntu job also runs
+tmux loads `~/.tmux.conf` without errors, `nvim --headless +qa` exits 0, a `.md` file outside `~/vimwiki` opens as `markdown` and one inside it as `vimwiki`; on the desktop targets also that `fc-list` / `fc-match` find `GeistMono Nerd Font`). The Ubuntu job also runs
 `make help` and `make check`, plus `.github/scripts/test-detect-target.sh`, which checks the four-way
 target detection (including WSL2 Arch and Arch/Ubuntu derivatives) against fixture files, and
 `.github/scripts/test-make-update.sh`, which drives `make update` against a throwaway origin, and fails if `flake.lock` no longer matches `flake.nix` (a changed input needs a committed lock bump). Jobs: `ubuntu` (ubuntu-latest), `arch`
@@ -294,6 +294,22 @@ rustup component add rust-analyzer
 ```
 
 Projects can pin their own toolchain with a `rust-toolchain.toml`.
+
+## Markdown
+
+Markdown files are made for reading in Neovim:
+
+- vimwiki is limited to its own wiki (`~/vimwiki`, `vim.g.vimwiki_global_ext = 0`). Every other `.md` file opens with the `markdown` filetype, so [render-markdown.nvim](https://github.com/MeanderingProgrammer/render-markdown.nvim) and LazyVim's Markdown settings apply to it. Files under `~/vimwiki` keep the `vimwiki` filetype.
+- LazyVim's Markdown extra is on: browser preview (`<leader>cp`), the render toggle (`<leader>um`), markdownlint diagnostics and the marksman language server.
+- The rendered view stays on in every mode (`render_modes = true`; the line under the cursor shows its raw text) and heading backgrounds span the full window width. The options live in `lua/plugins/markdown.lua`.
+
+| Before: vimwiki owns every .md file | After: rendered Markdown |
+| --- | --- |
+| ![Markdown file before](docs/markdown-before.png) | ![Markdown file after](docs/markdown-after.png) |
+
+The tools come from two places. Nix provides `nodejs` and `marksman` (a .NET binary, so it does not go through Mason). Mason installs `markdownlint-cli2` and `markdown-toc` with npm on the first start. The preview app is built with `npm install` when lazy.nvim installs or updates `markdown-preview.nvim`.
+
+**Browser preview on WSL2**: `:MarkdownPreview` (or `<leader>cp`) starts a small server on `localhost` and prints its address (`Preview page: http://localhost:<port>/page/1`). On WSL2 the plugin opens the page in the Windows default browser through `cmd.exe` (Windows interop, on by default), and WSL2's localhost forwarding lets Windows reach the server. If no browser opens, copy the printed address into the Windows browser. `:MarkdownPreviewStop` stops the server.
 
 ## Differences from the source repos
 

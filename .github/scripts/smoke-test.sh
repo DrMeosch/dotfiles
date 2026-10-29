@@ -73,4 +73,19 @@ tmux kill-server 2>/dev/null || true
 # -- nvim starts and quits ----------------------------------------------------
 if nvim --headless +qa; then ok "nvim --headless +qa exits 0"; else bad "nvim --headless +qa exited $?"; fi
 
+# -- Markdown files open as markdown, only the wiki is vimwiki -----------------
+# vimwiki would otherwise claim every .md file, and Markdown rendering would not apply.
+nvim_filetype() { nvim --headless "$1" '+call writefile([&filetype], "/dev/stdout")' +qa 2>/dev/null; }
+mdtmp="$(mktemp -d)"
+wiki_created=0
+[ -d ~/vimwiki ] || { mkdir ~/vimwiki; wiki_created=1; }
+wikifile="$(mktemp ~/vimwiki/smoke-test.XXXXXX.md)"
+touch "$mdtmp/README.md"
+ft="$(nvim_filetype "$mdtmp/README.md")"
+if [ "$ft" = markdown ]; then ok "a .md file outside ~/vimwiki is markdown"; else bad "a .md file outside ~/vimwiki is '$ft', expected markdown"; fi
+ft="$(nvim_filetype "$wikifile")"
+if [ "$ft" = vimwiki ]; then ok "a .md file in ~/vimwiki is vimwiki"; else bad "a .md file in ~/vimwiki is '$ft', expected vimwiki"; fi
+rm -rf "$mdtmp" "$wikifile"
+[ "$wiki_created" = 0 ] || rmdir ~/vimwiki
+
 exit "$fail"
