@@ -21,6 +21,11 @@
 #            the rendered configuration.winget (win32yank), the Windows Terminal
 #            fragment and .wslconfig. The wsl job also runs `make windows`, which
 #            copies the same files to the Windows side from inside the distro.
+#
+# Every job that runs Nix sets NIX_CONFIG to hand Nix the workflow token for
+# github.com. flake.lock pins the inputs, but Nix still downloads them through
+# api.github.com, and unauthenticated calls from a shared runner hit the rate
+# limit (HTTP 403).
 name: CI
 
 on:
@@ -39,6 +44,8 @@ jobs:
   ubuntu:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      NIX_CONFIG: access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7.0.1
 
@@ -74,6 +81,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     container: archlinux:latest
+    env:
+      NIX_CONFIG: access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Install prerequisites
         run: pacman -Syu --noconfirm --needed git curl sudo make
@@ -100,14 +109,14 @@ jobs:
       - name: First run (bootstrap path)
         run: |
           set -o pipefail
-          sudo -iu builder make -C "$GITHUB_WORKSPACE" YES=1 2>&1 | tee /tmp/first.log
+          sudo -iu builder env NIX_CONFIG="$NIX_CONFIG" make -C "$GITHUB_WORKSPACE" YES=1 2>&1 | tee /tmp/first.log
           grep -q 'first run' /tmp/first.log
           grep -q 'target arch' /tmp/first.log
 
       - name: Second run (rebuild path)
         run: |
           set -o pipefail
-          sudo -iu builder make -C "$GITHUB_WORKSPACE" 2>&1 | tee /tmp/second.log
+          sudo -iu builder env NIX_CONFIG="$NIX_CONFIG" make -C "$GITHUB_WORKSPACE" 2>&1 | tee /tmp/second.log
           grep -q 'existing setup found' /tmp/second.log
 
       - name: Smoke test
@@ -123,8 +132,9 @@ jobs:
     env:
       REPO_URL: ${{ github.server_url }}/${{ github.repository }}
       REPO_SHA: ${{ github.sha }}
+      NIX_CONFIG: access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
       # Pass these through to the WSL side.
-      WSLENV: REPO_URL:REPO_SHA
+      WSLENV: REPO_URL:REPO_SHA:NIX_CONFIG
     steps:
       - name: Install Ubuntu 24.04 on WSL2
         uses: Vampire/setup-wsl@v7.2.0
@@ -199,6 +209,8 @@ jobs:
   windows-files:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      NIX_CONFIG: access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7.0.1
 

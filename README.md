@@ -29,6 +29,7 @@ A `home-manager switch` builds:
 ```
 Makefile             # the entry point: `make` (apply), `make update`, `make check`, `make windows`
 flake.nix            # homeConfigurations: arch / ubuntu / wsl-arch / wsl-ubuntu, packages.windows (+ the one `user` line)
+flake.lock           # pinned nixpkgs and home-manager revisions (bump with `nix flake update`)
 bootstrap.sh         # first run (called by make): install Nix, link ~/.dotfiles, first switch
 rebuild.sh           # later runs (called by make): home-manager switch
 scripts/
@@ -188,7 +189,20 @@ make help           # list the commands
 
 `make update` refuses to pull, and says why, when you have local changes to tracked files or your
 history has diverged from the remote. The one local change it tolerates is the `user = ` line in
-`flake.nix` that the first run may have rewritten; that edit is kept across the pull.
+`flake.nix` that the first run may have rewritten; that edit is kept across the pull. A `flake.lock`
+that is only local (a machine set up before the lock was committed) is moved aside to
+`flake.lock.local-backup` for the pull, so it cannot block it; delete the backup afterwards.
+
+### Pinned inputs
+
+`flake.lock` pins `nixpkgs` and `home-manager` to exact revisions, so every machine and every CI run
+builds the same package versions. To move to newer ones, from the repo:
+
+```sh
+nix flake update       # re-resolve both inputs (or: nix flake update nixpkgs)
+make check             # evaluate everything against the new pins
+git add flake.lock && git commit -m "Update flake inputs"
+```
 
 `make TARGET=...` and `make YES=1` work with every command.
 
@@ -226,6 +240,10 @@ on `configuration.winget`, runs `windows/setup.ps1` twice (and once more with an
 that win32yank is installed, and that the fragment and `.wslconfig` are in place). Arch under WSL2 is not run
 on a real WSL2 Arch distro in CI; its detection is covered by the fixture test and its configuration by
 `make check`.
+
+Every job that runs Nix gives it the workflow token for github.com (`NIX_CONFIG` with `access-tokens`):
+Nix fetches the flake inputs through `api.github.com`, and without a token the shared runners hit its
+rate limit (HTTP 403).
 
 ## Make it yours
 

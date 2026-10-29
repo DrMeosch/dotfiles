@@ -6,6 +6,7 @@
 #   make                  first run on a machine: bootstrap.sh
 #                         every later run:        rebuild.sh
 #   make update           git pull --ff-only, then make apply
+#                         (sets aside an untracked local flake.lock from before the lock was committed)
 #   make check            evaluate all homeConfigurations and build the Windows files,
 #                         apply nothing
 #   make windows          WSL2 only: render the Windows-side files and copy them to
@@ -62,7 +63,7 @@ update: ## Pull the latest repo state (fast-forward only), then apply
 	if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then \
 		echo "make update: $(ROOT) is not a git checkout." >&2; exit 1; \
 	fi; \
-	saved=; \
+	saved=; lockbak=; \
 	if [ -n "$$(git status --porcelain --untracked-files=no)" ]; then \
 		if [ -z "$$(git status --porcelain --untracked-files=no | grep -v ' flake.nix$$')" ] && \
 		   [ -z "$$(git diff -U0 -- flake.nix | grep -E '^[+-][^+-]' | grep -vE '^[+-][[:space:]]*user = ')" ]; then \
@@ -76,8 +77,14 @@ update: ## Pull the latest repo state (fast-forward only), then apply
 			exit 1; \
 		fi; \
 	fi; \
+	if [ -n "$$(git status --porcelain -- flake.lock | grep '^??')" ]; then \
+		lockbak=flake.lock.local-backup; \
+		echo "==> make update: setting the untracked local flake.lock aside as $$lockbak so the pull can bring in the committed one (delete the backup once the pull worked)"; \
+		mv flake.lock "$$lockbak"; \
+	fi; \
 	restore() { \
 		[ -z "$$saved" ] || sed -i -E "s/^([[:space:]]*user = \")[^\"]+(\";.*)/\1$$saved\2/" flake.nix; \
+		[ -z "$$lockbak" ] || [ -e flake.lock ] || mv "$$lockbak" flake.lock; \
 	}; \
 	echo "==> make update: git pull --ff-only"; \
 	git pull --ff-only || { \

@@ -78,4 +78,41 @@ if (cd "$TMP/c3" && make update TARGET=arch >"$TMP/c3.log" 2>&1); then bad "upda
 grep -q 'user = "me"' "$TMP/c3/flake.nix" && ok "user line kept after a failed pull" || bad "user line lost after a failed pull"
 [ ! -s "$TMP/hm.log" ] && ok "no rebuild after a failed pull" || bad "rebuild ran after a failed pull"
 
+# 4. an untracked local flake.lock (from before the lock was committed) while upstream has none:
+#    set aside for the pull, then put back
+fresh c4
+echo '{"local": true}' > "$TMP/c4/flake.lock"
+upstream '$a # more' "append"
+if (cd "$TMP/c4" && make update TARGET=arch >"$TMP/c4.log" 2>&1); then ok "update succeeds with an untracked flake.lock"; else bad "update failed"; cat "$TMP/c4.log"; fi
+grep -q 'setting the untracked local flake.lock aside' "$TMP/c4.log" && ok "set-aside is announced" || bad "set-aside not announced"
+grep -q 'local' "$TMP/c4/flake.lock" && ok "local flake.lock put back" || bad "local flake.lock lost"
+[ ! -e "$TMP/c4/flake.lock.local-backup" ] && ok "no backup left behind" || bad "backup left behind"
+grep -q 'switch' "$TMP/hm.log" && ok "rebuild ran after the pull" || bad "rebuild did not run"
+
+# 5. a failed pull puts the untracked flake.lock back too
+fresh c5
+echo '{"local": true}' > "$TMP/c5/flake.lock"
+echo local > "$TMP/c5/localfile"
+git -C "$TMP/c5" add localfile
+git -C "$TMP/c5" commit -qm local
+upstream '$a # diverge again' "diverge again"
+if (cd "$TMP/c5" && make update TARGET=arch >"$TMP/c5.log" 2>&1); then bad "update accepted diverged history"; else ok "diverged history refused"; fi
+grep -q 'local' "$TMP/c5/flake.lock" && ok "local flake.lock kept after a failed pull" || bad "local flake.lock lost after a failed pull"
+
+# 6. upstream starts committing flake.lock: the untracked local one would block the pull
+fresh c6
+echo '{"local": true}' > "$TMP/c6/flake.lock"
+rm -rf "$TMP/up"
+git clone -q "$TMP/origin.git" "$TMP/up"
+echo '{"pinned": true}' > "$TMP/up/flake.lock"
+git -C "$TMP/up" add flake.lock
+git -C "$TMP/up" commit -qm "commit flake.lock"
+git -C "$TMP/up" push -q origin HEAD:master
+if (cd "$TMP/c6" && make update TARGET=arch >"$TMP/c6.log" 2>&1); then ok "update succeeds next to a newly committed flake.lock"; else bad "update failed"; cat "$TMP/c6.log"; fi
+grep -q 'pinned' "$TMP/c6/flake.lock" && ok "committed flake.lock pulled" || bad "committed flake.lock missing"
+git -C "$TMP/c6" ls-files --error-unmatch flake.lock >/dev/null 2>&1 && ok "flake.lock is tracked" || bad "flake.lock is not tracked"
+grep -q 'local' "$TMP/c6/flake.lock.local-backup" && ok "local flake.lock kept as a backup" || bad "local flake.lock backup missing"
+[ -z "$(git -C "$TMP/c6" status --porcelain --untracked-files=no -- flake.lock)" ] && ok "flake.lock matches upstream" || bad "flake.lock modified"
+grep -q 'switch' "$TMP/hm.log" && ok "rebuild ran after the pull" || bad "rebuild did not run"
+
 exit "$fail"
