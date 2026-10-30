@@ -19,7 +19,7 @@ return {
   {
     "LazyVim/LazyVim",
     opts = {
-      colorscheme = "dracula",
+      colorscheme = require("config.atc_theme").colorscheme(),
     },
   },
 }
