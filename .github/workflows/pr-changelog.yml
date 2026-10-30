@@ -1,0 +1,32 @@
+# Every pull request body needs a "## Changelog" section (see the PR template);
+# "none" is valid for internal-only changes. Bot PRs are exempt.
+name: PR changelog
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-changelog-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Script test
+        run: ./.github/scripts/test-check-pr-changelog.sh
+
+      - name: Changelog section present
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: ./.github/scripts/check-pr-changelog.sh

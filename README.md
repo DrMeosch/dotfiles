@@ -257,6 +257,14 @@ Every job that runs Nix gives it the workflow token for github.com (`NIX_CONFIG`
 Nix fetches the flake inputs through `api.github.com`, and without a token the shared runners hit its
 rate limit (HTTP 403).
 
+### Pull request changelog
+
+Every pull request body needs a `## Changelog` section (the PR template has it): one or two user-facing
+lines starting with Added, Changed, Fixed, Removed or Security, or `none` for internal-only changes. The
+`PR changelog` workflow (`.github/workflows/pr-changelog.yml`, checked by `.github/scripts/check-pr-changelog.sh`)
+fails a pull request without one and re-runs when the body is edited. Pull requests from bots (Renovate,
+Dependabot, `github-actions`) are exempt. There is no `CHANGELOG.md` file.
+
 ## Make it yours
 
 - **Username**: `make` offers to set it on the first run, or change the single `user = "ag"` line in `flake.nix`. Everything (home directory, symlink paths) threads from it.
