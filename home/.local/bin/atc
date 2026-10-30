@@ -18,11 +18,13 @@ dark)
   alacritty_color=dracula_plus
   tmux_color=dark
   nvim_colorscheme=dracula
+  btop_theme=DWM-Pink-Dark
   ;;
 light)
   alacritty_color=github_light_colorblind
   tmux_color=light
   nvim_colorscheme=github_light_colorblind
+  btop_theme=DWM-Pink-Light
   ;;
 *)
   echo "Usage: atc [dark|light|toggle]" >&2
@@ -41,6 +43,29 @@ touch "$alacritty_dir/alacritty.toml"
 if tmux has-session 2>/dev/null; then
   cp "$tmux_dir/$tmux_color.conf" "$tmux_dir/current-theme.conf"
   tmux source-file "$tmux_dir/current-theme.conf"
+fi
+
+# Set btop's color_theme in place. btop.conf is btop's own mutable file, so only
+# that one line is rewritten (atomically); a missing file is left for btop to create.
+btop_conf="$config/btop/btop.conf"
+if [[ -f "$btop_conf" ]]; then
+  btop_conf="$(readlink -f "$btop_conf")"
+  tmp="$(mktemp "$btop_conf.XXXXXX")"
+  sed -E "s|^color_theme[[:space:]]*=.*|color_theme = \"$btop_theme\"|" "$btop_conf" >"$tmp"
+  if ! grep -q '^color_theme[[:space:]]*=' "$tmp"; then
+    [[ -z "$(tail -c1 "$tmp")" ]] || echo >>"$tmp"
+    printf 'color_theme = "%s"\n' "$btop_theme" >>"$tmp"
+  fi
+  chmod --reference="$btop_conf" "$tmp"
+  mv "$tmp" "$btop_conf"
+  # btop 1.3.1+ hot-reloads its config on SIGUSR2; older builds would be killed by
+  # it, so signal only running btops whose binary reports a new enough version.
+  while read -r pid; do
+    ver="$("/proc/$pid/exe" --version 2>/dev/null | grep -oE '[0-9]+(\.[0-9]+)+' | head -n1)" || true
+    if [[ -n "$ver" && "$(printf '%s\n1.3.1\n' "$ver" | sort -V | head -n1)" == 1.3.1 ]]; then
+      kill -USR2 "$pid" 2>/dev/null || true
+    fi
+  done < <(pgrep -u "$(id -u)" -x btop || true)
 fi
 
 # Switch every discoverable, listening Neovim instance.

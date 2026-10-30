@@ -54,11 +54,20 @@ in
   // lib.genAttrs (map themeTarget upstreamThemes) (t: {
     source = "${inputs.alacritty-theme}/themes/${baseNameOf t}";
   })
-  # atc switches Alacritty, tmux and Neovim between dark and light; it is edited
+  # atc switches Alacritty, tmux, btop and Neovim between dark and light; it is edited
   # in place like the config.
   // {
     ".local/bin/atc".source =
       config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.local/bin/atc";
+  }
+  # btop's dark and light themes, which atc selects. Only the theme files are
+  # linked: ~/.config/btop/btop.conf stays btop's own writable file (atc edits
+  # its color_theme line), so the directory itself stays real.
+  // {
+    ".config/btop/themes/DWM-Pink-Dark.theme".source =
+      config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.config/btop/themes/DWM-Pink-Dark.theme";
+    ".config/btop/themes/DWM-Pink-Light.theme".source =
+      config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.config/btop/themes/DWM-Pink-Light.theme";
   }
   # Session plumbing so Chromium and other portal clients follow the dark/light
   # switch: the portal backend preference, the hook that exports
