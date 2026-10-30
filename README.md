@@ -208,20 +208,20 @@ make update
 
 Older revisions linked the whole `~/.config/alacritty` directory to `home/.config/alacritty` in the repo. It is
 now a real directory holding one link per file (our config and themes into the repo, the upstream themes into the
-Nix store). The next `make` replaces the old directory symlink by itself (only the link, never the repo directory
+Nix store). The next `make update` replaces the old directory symlink by itself (only the link, never the repo directory
 it pointed to) and says so on screen, so nothing needs doing.
 
 A checkout that already went through a rebuild of the *intermediate* revision (the one that linked the new files
 through the old symlink) is damaged: `home/.config/alacritty/alacritty.toml` has become a link to itself (`touch:
 cannot touch ...alacritty.toml: Too many levels of symbolic links`) and the upstream theme links landed in
-`home/.config/alacritty/themes/`. Repair it once, before the next `make`:
+`home/.config/alacritty/themes/`. Repair it once, then update with `make update` (it pulls this fix and applies it; a plain `make` would apply the revision you are on again, before the fix is there, and bring the damage back):
 
 ```sh
 cd ~/.dotfiles
 git checkout -- home/.config/alacritty          # restores alacritty.toml and our themes
-git clean -n -- home/.config/alacritty          # lists the stray links and *.bak files; check the list
-git clean -f -- home/.config/alacritty          # removes them
-make
+git clean -nx -- home/.config/alacritty         # lists the stray links and the ignored *.bak files; check the list
+git clean -fx -- home/.config/alacritty         # removes them
+make update
 ```
 
 ### Pinned inputs
@@ -266,7 +266,7 @@ tmux loads `~/.tmux.conf` without errors, `nvim --headless +qa` exits 0, a `.md`
 `make help` and `make check`, plus `.github/scripts/test-detect-target.sh`, which checks the four-way
 target detection (including WSL2 Arch and Arch/Ubuntu derivatives) against fixture files, and
 `.github/scripts/test-make-update.sh`, which drives `make update` against a throwaway origin,
-`.github/scripts/test-activation.sh`, which activates the real configuration in a throwaway home and checks the upgrade from the old single-symlink Alacritty layout (real directory, working links, repo checkout untouched) and the dwm checkout (cloned when missing, left alone when present, only a warning without network), 
+`.github/scripts/test-activation.sh`, which activates the real configuration in a throwaway home and checks the upgrade from the old single-symlink Alacritty layout (real directory, working links, repo checkout untouched) and the dwm checkout (cloned when missing, left alone when present, only a warning without network),
 `.github/scripts/test-theme-switch.sh`, which runs `atc` and Neovim's colorscheme choice against a throwaway home with the state file present and absent, and a check that fails if `flake.lock` no longer matches `flake.nix` (a changed input needs a committed lock bump). Jobs: `ubuntu` (ubuntu-latest), `arch`
 (archlinux container), `wsl` (Ubuntu 24.04 on real WSL2 on windows-latest, target `wsl-ubuntu`; it also runs `make windows` and checks the
 files arrive on the Windows side as real files), `windows-files` (builds `packages.windows` on Linux and uploads it) and `windows`

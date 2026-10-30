@@ -31,6 +31,13 @@ atc="$REPO/home/.local/bin/atc"
 state="$HOME/.config/atc-theme"
 tracked_before="$(cd "$REPO" && git status --porcelain && sha256sum home/.config/nvim/lua/plugins/colorscheme.lua)"
 
+# No state file yet means dark, so the first plain switch goes to light.
+for args in "" toggle; do
+  rm -f "$state"
+  "$atc" $args >/dev/null
+  if [ "$(cat "$state")" = light ]; then ok "atc ${args:-(no argument)} without a state file -> light"; else bad "atc ${args:-(no argument)} without a state file left '$(cat "$state")', expected light"; fi
+done
+
 for theme in light dark toggle toggle; do
   want="$theme"
   [ "$theme" = toggle ] && { [ "$(cat "$state")" = dark ] && want=light || want=dark; }

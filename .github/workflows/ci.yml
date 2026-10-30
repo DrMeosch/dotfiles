@@ -82,7 +82,7 @@ jobs:
 
       # Upgrade from the old single-symlink Alacritty layout and the dwm checkout,
       # in a throwaway home.
-      - name: Alacritty layout migration
+      - name: Home activation (Alacritty layout migration, dwm checkout)
         run: ./.github/scripts/test-activation.sh
 
       # A changed flake input needs a committed lock bump.
