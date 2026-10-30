@@ -265,6 +265,12 @@ lines starting with Added, Changed, Fixed, Removed or Security, or `none` for in
 fails a pull request without one and re-runs when the body is edited. Pull requests from bots (Renovate,
 Dependabot, `github-actions`) are exempt. There is no `CHANGELOG.md` file.
 
+Instead, the `Changelog feed` workflow (`.github/workflows/changelog-feed.yml`, `.github/scripts/post-changelog.sh`)
+appends the lines of every merged pull request as one comment, with the date, the pull request link and the
+merge commit link, to a single pinned issue titled "Changelog" (created on first use; pull requests that say
+`none` are skipped). It runs on `pull_request_target` so it can write from fork pull requests too; it never
+checks out or runs pull request code and only has `issues: write` and `pull-requests: read`.
+
 ## Make it yours
 
 - **Username**: `make` offers to set it on the first run, or change the single `user = "ag"` line in `flake.nix`. Everything (home directory, symlink paths) threads from it.

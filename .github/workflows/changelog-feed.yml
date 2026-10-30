@@ -1,0 +1,45 @@
+# After a pull request is merged, appends its "## Changelog" lines as one comment
+# on the running, pinned "Changelog" issue (created when missing).
+# pull_request_target runs with the base repository's token even for fork pull
+# requests, so nothing from the pull request is ever checked out or executed:
+# the job runs the scripts from the base branch and reads the body through the event.
+name: Changelog feed
+
+on:
+  pull_request_target: # zizmor: ignore[dangerous-triggers] base-branch scripts only, no PR code
+    types: [closed]
+
+permissions: {}
+
+concurrency:
+  group: changelog-feed
+  cancel-in-progress: false
+
+jobs:
+  post:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+      pull-requests: read
+    steps:
+      # Default ref of pull_request_target: the base branch, not the pull request.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Script test
+        run: ./.github/scripts/test-post-changelog.sh
+
+      - name: Append to the Changelog issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          MERGED_AT: ${{ github.event.pull_request.merged_at }}
+        run: ./.github/scripts/post-changelog.sh
