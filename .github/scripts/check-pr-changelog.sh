@@ -9,14 +9,7 @@ case "$author" in
     echo "ok: $author is exempt from the changelog rule"; exit 0 ;;
 esac
 
-# Text under the first "## Changelog" heading up to the next heading, minus
-# comments, blank lines, bare bullets and type prefixes without text and CRs.
-section="$(printf '%s\n' "${PR_BODY:-}" | tr -d '\r' | awk '
-  /^##[[:space:]]+Changelog[[:space:]]*$/ && !seen { seen = 1; on = 1; next }
-  on && /^#/ { exit }
-  on { print }
-' | sed -e ':a' -e 's/<!--[^>]*-->//g' -e '/<!--/{N;ba' -e '}' \
-  | grep -Eiv '^[[:space:]]*([-*][[:space:]]*)?((added|changed|fixed|removed|security|deprecated)[[:space:]]*:?[[:space:]]*)?$' || true)"
+section="$("$(dirname "${BASH_SOURCE[0]}")/changelog-section.sh")"
 
 if [ -z "$section" ]; then
   echo "error: the PR body needs a non-empty '## Changelog' section." >&2
