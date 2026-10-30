@@ -268,7 +268,7 @@ Dependabot, `github-actions`) are exempt. There is no `CHANGELOG.md` file.
 Instead, the `Changelog feed` workflow (`.github/workflows/changelog-feed.yml`, `.github/scripts/post-changelog.sh`)
 appends the lines of every merged pull request as one comment, with the date, the pull request link and the
 merge commit link, to a single pinned issue titled "Changelog" (created on first use; pull requests that say
-`none` are skipped). It runs on `pull_request_target` so it can write from fork pull requests too; it never
+`none` are skipped; a hidden marker per pull request keeps re-runs from posting twice, and only the issue created by the Actions bot counts). It runs on `pull_request_target` so it can write from fork pull requests too; it never
 checks out or runs pull request code and only has `issues: write` and `pull-requests: read`.
 
 ## Make it yours

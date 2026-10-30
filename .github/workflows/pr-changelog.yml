@@ -25,6 +25,9 @@ jobs:
       - name: Script test
         run: ./.github/scripts/test-check-pr-changelog.sh
 
+      - name: Changelog feed script test
+        run: ./.github/scripts/test-post-changelog.sh
+
       - name: Changelog section present
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
