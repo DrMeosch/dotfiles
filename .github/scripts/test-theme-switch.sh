@@ -78,6 +78,9 @@ done
 printf 'save_config_on_exit = false\n' >"$conf"
 "$atc" light >/dev/null
 [ "$(cat "$conf")" = $'save_config_on_exit = false\ncolor_theme = "DWM-Pink-Light"' ] && ok "atc adds color_theme when btop.conf has none" || bad "btop.conf without color_theme became: $(cat "$conf")"
+printf 'save_config_on_exit = false' >"$conf"
+"$atc" dark >/dev/null
+[ "$(cat "$conf")" = $'save_config_on_exit = false\ncolor_theme = "DWM-Pink-Dark"' ] && ok "atc keeps the last line intact when btop.conf has no color_theme and no trailing newline" || bad "btop.conf without color_theme or trailing newline became: $(cat "$conf")"
 [ -z "$(ls "$HOME/.config/btop" | grep -v '^btop.conf$')" ] && ok "atc left no temp files in the btop directory" || bad "stray files in the btop directory"
 
 # A running btop is told to reload with SIGUSR2. A stand-in binary (a copy of
