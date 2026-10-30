@@ -22,7 +22,7 @@ bold = { family = "GeistMono Nerd Font", style = "Bold" }
 opacity = 0.95
 decorations = "none"
 dynamic_title = true
-padding = { x = 6, y = 6 }
+padding = { x = 0, y = 0 }
 # Spread the sub-cell leftover of a tiling WM-assigned height evenly, so the
 # bottom row (tmux status line) sits as low as the grid allows
 dynamic_padding = true
