@@ -29,14 +29,21 @@ changelog_issues() {
     --jq "[.[] | select(.title == \"$TITLE\")] | sort_by(.number) | .[].number"
 }
 
-number="$(changelog_issues | head -n1)"
+# Number of the oldest one, or empty.
+oldest_issue() {
+  gh issue list --state all --author 'github-actions[bot]' --limit 100 --json number,title \
+    --jq "[.[] | select(.title == \"$TITLE\")] | sort_by(.number) | .[0].number // empty"
+}
+
+number="$(oldest_issue)"
 
 if [ -z "$number" ]; then
   url="$(gh issue create --title "$TITLE" --body "Running list of the changes merged into this repository. One comment per merged pull request, added automatically.")"
   mine="${url##*/}"
   echo "created issue #$mine"
+  gh issue lock "$mine" >/dev/null || echo "warning: could not lock issue #$mine" >&2
   # Runs are not serialized, so a concurrent run may have created one too: keep the oldest.
-  number="$(changelog_issues | head -n1)"
+  number="$(oldest_issue)"
   number="${number:-$mine}"
   if [ "$number" = "$mine" ]; then
     node_id="$(gh issue view "$mine" --json id --jq .id)"
@@ -46,7 +53,9 @@ if [ -z "$number" ]; then
   for dup in $(changelog_issues | grep -vx "$number" || true); do
     gh issue close "$dup" --reason "not planned" --comment "Duplicate of #$number."
   done
-elif gh api --paginate "repos/${GH_REPO}/issues/${number}/comments" --jq '.[].body' | grep -qxF -- "$marker"; then
+# Only the first line of the bot's own comments counts: anyone else could forge the marker.
+elif gh api --paginate "repos/${GH_REPO}/issues/${number}/comments" \
+  --jq '.[] | select(.user.login == "github-actions[bot]") | .body | split("\n")[0]' | grep -qxF -- "$marker"; then
   echo "skip: PR #${PR_NUMBER} is already in issue #$number"; exit 0
 fi
 

@@ -14,12 +14,13 @@ echo "$*" >> "$STUB_LOG"
 case "$1 $2" in
   "issue list")
     case "$*" in *"--author github-actions[bot]"*) ;; *) echo 3; exit 0 ;; esac
-    [ -e "$STUB_DIR/issue" ] && cat "$STUB_DIR/issue" ;;
-  "issue close") ;;
+    [ -e "$STUB_DIR/issue" ] || exit 0
+    jq -Rn '[inputs | {number: tonumber, title: "Changelog"}]' "$STUB_DIR/issue" | jq -r "${@: -1}" ;;
+  "issue close"|"issue lock") ;;
   "issue create") [ -n "${STUB_RACE:-}" ] && echo 6 >> "$STUB_DIR/issue"; echo 7 >> "$STUB_DIR/issue"; echo "https://github.com/o/r/issues/7" ;;
   "issue view")   echo "NODE" ;;
-  "issue comment") printf '%s\n' "$5" >> "$STUB_DIR/comments" ;;
-  "api --paginate") cat "$STUB_DIR/comments" 2>/dev/null || true ;;
+  "issue comment") jq -cn --arg b "$5" '{user: {login: "github-actions[bot]"}, body: $b}' >> "$STUB_DIR/comments" ;;
+  "api --paginate") jq -rs "${@: -1}" "$STUB_DIR/comments" 2>/dev/null || true ;;
 esac
 exit 0
 STUB
@@ -34,14 +35,15 @@ run() {
 }
 check() { if [ "$2" = ok ]; then echo "ok:   $1"; else echo "FAIL: $1"; fail=1; fi; }
 logged() { grep -q -- "$1" "$tmp/log" && echo ok || echo no; }
-ncomments() { grep -c '^<!-- changelog-feed' "$tmp/comments" 2>/dev/null || true; }
+ncomments() { jq -s '[.[] | select(.user.login == "github-actions[bot]")] | length' "$tmp/comments" 2>/dev/null || echo 0; }
 
 run $'## Changelog\nFixed: the thing.'
 check "creates the issue when missing" "$(logged 'issue create --title Changelog')"
 check "pins the new issue" "$(logged 'pinIssue')"
+check "locks the new issue" "$(logged 'issue lock 7')"
 check "comments on the new issue" "$(logged 'issue comment 7 ')"
 check "comment has marker, date, PR and merge commit links" \
-  "$(tr '\n' ' ' < "$tmp/comments" | grep -q 'pr=5 -->.*2026-10-30.*pull/5.*commit/0123456789abcdef.*Fixed: the thing' && echo ok || echo no)"
+  "$(jq -r .body "$tmp/comments" | tr '\n' ' ' | grep -q 'pr=5 -->.*2026-10-30.*pull/5.*commit/0123456789abcdef.*Fixed: the thing' && echo ok || echo no)"
 
 run $'## Changelog\nFixed: the thing.'
 check "re-running the same PR posts nothing" "$([ "$(ncomments)" = 1 ] && echo ok || echo no)"
@@ -52,12 +54,17 @@ check "does not create a second issue" "$([ "$(logged 'issue create')" = no ] &&
 check "second PR is appended" "$([ "$(ncomments)" = 2 ] && echo ok || echo no)"
 
 PR=8 run $'## Changelog\nAdded: ping @someone' "Thanks @other"
-check "defuses @mentions" "$(! grep -q '@[a-z]' "$tmp/comments" && echo ok || echo no)"
+check "defuses @mentions" "$(! jq -r .body "$tmp/comments" | grep -q '@[a-z]' && echo ok || echo no)"
 
 for body in $'## Changelog\nnone' $'## Changelog\n- None.\r\n' $'## Changelog\nNone' "" $'## Summary\nx'; do
   before="$(ncomments)"; PR=9 run "$body"
   check "skips body: ${body//$'\n'/|}" "$([ ! -s "$tmp/log" ] && [ "$(ncomments)" = "$before" ] && echo ok || echo no)"
 done
+
+# A stranger forges the marker of PR 11: that PR must still be posted.
+jq -cn '{user: {login: "stranger"}, body: "<!-- changelog-feed pr=11 -->\nfake"}' >> "$tmp/comments"
+before="$(ncomments)"; PR=11 run $'## Changelog\nAdded: real'
+check "a forged marker from another author does not skip the PR" "$([ "$(ncomments)" = $((before + 1)) ] && echo ok || echo no)"
 
 # A concurrent run created issue 6 first: keep it, close our 7, do not pin, post to 6.
 rm -f "$tmp/issue" "$tmp/comments"
