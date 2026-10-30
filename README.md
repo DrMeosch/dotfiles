@@ -42,10 +42,10 @@ home/
   wsl.nix            # WSL2 (either distro): no GUI (clipboard bridge notes)
   .config/nvim/      # Neovim config (edited in place)
   .config/alacritty/ # alacritty.toml + our own themes/ (the upstream collection comes from the flake input)
+  .config/btop/      # btop dark/light themes (themes/); btop.conf stays unmanaged
   .config/xdg-desktop-portal/ # portals.conf: use the gtk portal backend (browsers follow dark/light through it)
   .local/bin/        # atc (dark/light theme switch), x11-session-env (X session hook: exports DISPLAY/XAUTHORITY to the systemd user environment), portal-color-scheme; the dwm-dark.sh / dwm-light.sh links point into the dwm checkout
   .tmux.conf         # tmux config (plugins via tpm)
-  .config/btop/      # btop dark/light themes (themes/); btop.conf stays unmanaged
   .tmux/             # tmux themes (dark/light.conf; current-theme.conf is seeded locally)
   AGENTS.md          # shared agent instructions
   .claude/ .pi/      # agent settings
@@ -269,7 +269,7 @@ tmux loads `~/.tmux.conf` without errors, `nvim --headless +qa` exits 0, a `.md`
 target detection (including WSL2 Arch and Arch/Ubuntu derivatives) against fixture files, and
 `.github/scripts/test-make-update.sh`, which drives `make update` against a throwaway origin,
 `.github/scripts/test-activation.sh`, which activates the real configuration in a throwaway home and checks the upgrade from the old single-symlink Alacritty layout (real directory, working links, repo checkout untouched) and the dwm checkout (cloned when missing, left alone when present, only a warning without network),
-`.github/scripts/test-theme-switch.sh`, which runs `atc` and Neovim's colorscheme choice against a throwaway home with the state file present and absent, and a check that fails if `flake.lock` no longer matches `flake.nix` (a changed input needs a committed lock bump). Jobs: `ubuntu` (ubuntu-latest), `arch`
+`.github/scripts/test-theme-switch.sh`, which runs `atc` (including its edit of btop's `color_theme` line) and Neovim's colorscheme choice against a throwaway home with the state file present and absent, and a check that fails if `flake.lock` no longer matches `flake.nix` (a changed input needs a committed lock bump). Jobs: `ubuntu` (ubuntu-latest), `arch`
 (archlinux container), `wsl` (Ubuntu 24.04 on real WSL2 on windows-latest, target `wsl-ubuntu`; it also runs `make windows` and checks the
 files arrive on the Windows side as real files), `windows-files` (builds `packages.windows` on Linux and uploads it) and `windows`
 (downloads those files to `%USERPROFILE%\.dotfiles-windows` on windows-latest, runs `winget configure validate` and `winget configure test`

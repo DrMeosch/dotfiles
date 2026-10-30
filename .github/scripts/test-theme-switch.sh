@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Checks the untracked theme switch: `atc` writes only state files under a
-# throwaway $HOME (never the repo checkout), and Neovim picks its colorscheme
-# from the state file (dark when the file is missing or unreadable).
+# Checks the untracked theme switch: `atc` writes only state files and btop's
+# color_theme line under a throwaway $HOME (never the repo checkout), and Neovim
+# picks its colorscheme from the state file (dark when the file is missing or unreadable).
 #
 # Needs nvim on PATH for the Neovim half; runs from anywhere.
 set -euo pipefail
