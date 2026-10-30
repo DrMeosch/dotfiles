@@ -14,7 +14,7 @@ home-manager**, which manages your `$HOME` on any distro without needing NixOS.
 A `home-manager switch` builds:
 
 - **Shell**: zsh with autosuggestions, syntax highlighting, fzf keybindings, and a [starship](https://starship.rs/) prompt (no oh-my-zsh, no powerlevel10k)
-- **Multiplexer**: tmux (prefix `C-a`, vi keys) with plugins managed by [tpm](https://github.com/tmux-plugins/tpm), which the config clones and installs on first start (needs `git`)
+- **Multiplexer**: tmux (prefix `C-a`, vi keys) with plugins managed by [tpm](https://github.com/tmux-plugins/tpm), which the config clones and installs on first start (needs `git`) The vim-tmux-navigator plugin is not used, because its root `C-h`/`C-j`/`C-k`/`C-l`/`C-\` bindings stopped those keys reaching the program in a pane. After updating, a running tmux keeps the old bindings until you reload the config (`tmux source-file ~/.tmux.conf`, the config unbinds them) or restart tmux once.
 - **Editor**: [LazyVim](https://www.lazyvim.org/)-based Neovim config (lazy.nvim, neogit, vimwiki, rendered Markdown, devcontainer LSP, neovide settings)
 - **Terminal**: Alacritty with a few hand-converted color themes plus the whole [alacritty-theme](https://github.com/alacritty/alacritty-theme) collection (rose-pine moon by default) - desktop targets only; the Alacritty program itself comes from the distro (`pacman -S alacritty` / `apt install alacritty`)
 - **CLI tools**: ripgrep, fd, fzf, jq, lazygit, git, rustup, tree-sitter, node, marksman

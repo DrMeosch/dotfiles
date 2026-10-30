@@ -83,6 +83,17 @@ else
 fi
 tmux kill-server 2>/dev/null || true
 
+# vim-tmux-navigator is not used: its root-table C-h/C-j/C-k/C-l/C-\ bindings stop those
+# keys from reaching the program in the pane (zsh kill-line, clear-screen, ...).
+# Plugins load in the background, so also check that none is configured.
+keys="$(tmux -L smoke-nav -f ~/.tmux.conf start-server \; source-file ~/.tmux.conf \; list-keys -T root 2>&1 \; kill-server)" || true
+if grep -qE '^bind-key +-T +root +C-[hjkl\\] ' <<<"$keys" || grep -qE '^[^#]*@plugin.*vim-tmux-navigator' ~/.tmux.conf; then
+  bad "tmux root table binds C-h/C-j/C-k/C-l/C-\\ (vim-tmux-navigator?):"; grep -E 'root +C-[hjkl\\] ' <<<"$keys" || true
+else
+  ok "tmux root table leaves C-h/C-j/C-k/C-l/C-\\ to the program"
+fi
+tmux -L smoke-nav kill-server 2>/dev/null || true
+
 # -- nvim starts and quits ----------------------------------------------------
 if nvim --headless +qa; then ok "nvim --headless +qa exits 0"; else bad "nvim --headless +qa exited $?"; fi
 
