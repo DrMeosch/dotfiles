@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Export the X session's DISPLAY and XAUTHORITY to the systemd user manager and
+# D-Bus activated services (xdg-desktop-portal-gtk needs them to start).
+# Meant to run once from the X session start file (~/.xprofile or ~/.config/x11/xprofile); safe to repeat.
+set -euo pipefail
+
+command -v dbus-update-activation-environment >/dev/null 2>&1 || {
+  echo "x11-session-env: dbus-update-activation-environment not found (install dbus)" >&2
+  exit 1
+}
+[ -n "${DISPLAY:-}" ] || { echo "x11-session-env: DISPLAY is not set" >&2; exit 1; }
+
+# XAUTHORITY is often unset (the default ~/.Xauthority applies); only pass what exists.
+vars=(DISPLAY)
+[ -z "${XAUTHORITY:-}" ] || vars+=(XAUTHORITY)
+exec dbus-update-activation-environment --systemd "${vars[@]}"

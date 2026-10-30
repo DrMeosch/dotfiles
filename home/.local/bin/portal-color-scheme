@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Asks xdg-desktop-portal for the org.freedesktop.appearance color-scheme the way
+# Chromium does, and prints it: dark, light or no-preference. Exits non-zero when
+# the portal does not answer (not installed, no backend, no session bus).
+# Install xdg-desktop-portal and xdg-desktop-portal-gtk from the distro.
+set -euo pipefail
+
+dest=org.freedesktop.portal.Desktop path=/org/freedesktop/portal/desktop
+if command -v gdbus >/dev/null 2>&1; then
+  out="$(gdbus call --session --dest "$dest" --object-path "$path" \
+    --method org.freedesktop.portal.Settings.ReadOne org.freedesktop.appearance color-scheme 2>&1)" || {
+    echo "portal-color-scheme: the portal did not answer: $out" >&2; exit 1; }
+elif command -v busctl >/dev/null 2>&1; then
+  out="$(busctl --user call "$dest" "$path" \
+    org.freedesktop.portal.Settings ReadOne ss org.freedesktop.appearance color-scheme 2>&1)" || {
+    echo "portal-color-scheme: the portal did not answer: $out" >&2; exit 1; }
+else
+  echo "portal-color-scheme: needs gdbus (glib) or busctl (systemd)" >&2; exit 1
+fi
+
+# gdbus: (<<uint32 1>>,)   busctl: v u 1
+case "$(grep -oE '[0-9]+' <<<"$out" | tail -n1)" in
+  1) echo dark ;;
+  2) echo light ;;
+  0) echo no-preference ;;
+  *) echo "portal-color-scheme: unexpected answer: $out" >&2; exit 1 ;;
+esac
