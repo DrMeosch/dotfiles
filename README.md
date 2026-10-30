@@ -16,7 +16,7 @@ A `home-manager switch` builds:
 - **Shell**: zsh with autosuggestions, syntax highlighting, fzf keybindings, and a [starship](https://starship.rs/) prompt (no oh-my-zsh, no powerlevel10k)
 - **Multiplexer**: tmux (prefix `C-a`, vi keys) with plugins managed by [tpm](https://github.com/tmux-plugins/tpm), which the config clones and installs on first start (needs `git`)
 - **Editor**: [LazyVim](https://www.lazyvim.org/)-based Neovim config (lazy.nvim, neogit, vimwiki, rendered Markdown, devcontainer LSP, neovide settings)
-- **Terminal**: Alacritty with a few hand-converted color themes plus the whole [alacritty-theme](https://github.com/alacritty/alacritty-theme) collection (rose-pine moon by default) - desktop targets only
+- **Terminal**: Alacritty with a few hand-converted color themes plus the whole [alacritty-theme](https://github.com/alacritty/alacritty-theme) collection (rose-pine moon by default) - desktop targets only; the Alacritty program itself comes from the distro (`pacman -S alacritty` / `apt install alacritty`)
 - **CLI tools**: ripgrep, fd, fzf, jq, lazygit, git, rustup, tree-sitter, node, marksman
 - **Agent configs**: one shared `AGENTS.md` for Claude / Codex / opencode, plus Claude and Pi settings
 - **Font**: [Geist Mono Nerd Font](https://github.com/ryanoasis/nerd-fonts) (family `GeistMono Nerd Font`; Nix on the desktop targets, `windows/setup.ps1` for Windows Terminal on WSL2)
@@ -36,7 +36,7 @@ scripts/
   detect-target.sh   # the one place that picks arch / ubuntu / wsl-arch / wsl-ubuntu
 home/
   common.nix         # shared: packages, zsh, starship, tmux, agent configs, symlinks
-  gui.nix            # desktop-only: Alacritty, theme switch scripts + fonts (arch, ubuntu)
+  gui.nix            # desktop-only: Alacritty config, theme switch scripts + fonts (arch, ubuntu)
   arch.nix           # Arch-only tweaks
   ubuntu.nix         # Ubuntu-only tweaks
   wsl.nix            # WSL2 (either distro): no GUI (clipboard bridge notes)
@@ -111,7 +111,7 @@ cd ~/dotfiles
 make
 ```
 
-The target is detected as `arch` (desktop: Alacritty and the Geist Mono Nerd Font included). It asks before
+The target is detected as `arch` (desktop: the Alacritty config and themes and the Geist Mono Nerd Font included; install Alacritty itself from the distro, `sudo pacman -S alacritty`). It asks before
 touching `flake.nix` (see below); `make YES=1` skips the question.
 
 ### WSL2 on Windows 11 (the Windows host too)
@@ -320,7 +320,7 @@ settings.user.email = "you@example.com";
 
 ## Notes per target
 
-- **Arch / Ubuntu desktop**: import `gui.nix`, so you get Alacritty and the Geist Mono Nerd Font (`nerd-fonts.geist-mono`, registered with fontconfig by home-manager, so it is there before Alacritty starts). `alacritty.toml` already uses the family `GeistMono Nerd Font`; set the same name in any other terminal. The icons the setup relies on (starship, tmux, Neovim file tree) look like this:
+- **Arch / Ubuntu desktop**: import `gui.nix`, so you get the Alacritty config and themes and the Geist Mono Nerd Font (`nerd-fonts.geist-mono`, registered with fontconfig by home-manager, so it is there before Alacritty starts). Alacritty itself is not installed through Nix, because a Nix-built GL program cannot load the host graphics drivers on a non-NixOS system ("failed to find suitable GL configuration"): install it from the distro, `sudo pacman -S alacritty` on Arch or `sudo apt install alacritty` on Ubuntu. `alacritty.toml` already uses the family `GeistMono Nerd Font`; set the same name in any other terminal. The icons the setup relies on (starship, tmux, Neovim file tree) look like this:
 
   ![Nerd Font icons](docs/geist-mono-icons.png)
 - **WSL2 (Ubuntu or Arch)**: no local display, so no Alacritty and no fonts from Nix. The text is drawn by **Windows Terminal** with Windows' own fonts, so the Nerd Font icons (starship, tmux, Neovim) show up as boxes until the same font is installed on Windows. `windows/setup.ps1` does that, and installs `win32yank` (Neovim's Windows clipboard bridge, found through Windows interop) and applies the color scheme, profile and `.wslconfig`: see [WSL2 on Windows 11](#wsl2-on-windows-11-the-windows-host-too). tmux copies via `clip.exe` through the tmux-yank plugin (it is on `PATH` whenever Windows interop is enabled - the default). For `wslview` as `$BROWSER`, install `wslu` (Ubuntu: `sudo apt install wslu`; Arch: from the AUR) and uncomment the line in `home/wsl.nix`.

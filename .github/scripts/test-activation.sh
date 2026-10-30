@@ -165,6 +165,14 @@ else
   bad "the existing dwm checkout was modified"
 fi
 
+# The terminal comes from the distro: a Nix-built Alacritty cannot load the host GL
+# drivers on a non-NixOS system, so the profile must not carry it (only its config).
+if [ -e "$pkg/home-path/bin/alacritty" ]; then
+  bad "the home profile installs alacritty; use the distro package"
+else
+  ok "the home profile does not install alacritty"
+fi
+
 own=0
 for f in "$REPO"/home/.config/alacritty/themes/*.toml; do
   n="${f##*/}"

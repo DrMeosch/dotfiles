@@ -21,8 +21,11 @@ let
   dwmScripts = [ "dwm-dark.sh" "dwm-light.sh" ];
 in
 {
+  # Alacritty itself is not installed here: a Nix-built GL program cannot load
+  # the host graphics drivers on a non-NixOS system ("failed to find suitable GL
+  # configuration"). Install it from the distro (pacman -S alacritty /
+  # apt install alacritty); only its config and themes are managed below.
   home.packages = with pkgs; [
-    alacritty
     nerd-fonts.geist-mono  # the font Alacritty and Neovim render in (family "GeistMono Nerd Font")
     fontconfig             # fc-list / fc-match, to check which fonts are installed
     # System-clipboard providers: Neovim's `unnamedplus` and tmux's
