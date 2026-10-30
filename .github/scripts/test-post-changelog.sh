@@ -15,7 +15,8 @@ case "$1 $2" in
   "issue list")
     case "$*" in *"--author github-actions[bot]"*) ;; *) echo 3; exit 0 ;; esac
     [ -e "$STUB_DIR/issue" ] && cat "$STUB_DIR/issue" ;;
-  "issue create") echo 7 > "$STUB_DIR/issue"; echo "https://github.com/o/r/issues/7" ;;
+  "issue close") ;;
+  "issue create") [ -n "${STUB_RACE:-}" ] && echo 6 >> "$STUB_DIR/issue"; echo 7 >> "$STUB_DIR/issue"; echo "https://github.com/o/r/issues/7" ;;
   "issue view")   echo "NODE" ;;
   "issue comment") printf '%s\n' "$5" >> "$STUB_DIR/comments" ;;
   "api --paginate") cat "$STUB_DIR/comments" 2>/dev/null || true ;;
@@ -57,5 +58,13 @@ for body in $'## Changelog\nnone' $'## Changelog\n- None.\r\n' $'## Changelog\nN
   before="$(ncomments)"; PR=9 run "$body"
   check "skips body: ${body//$'\n'/|}" "$([ ! -s "$tmp/log" ] && [ "$(ncomments)" = "$before" ] && echo ok || echo no)"
 done
+
+# A concurrent run created issue 6 first: keep it, close our 7, do not pin, post to 6.
+rm -f "$tmp/issue" "$tmp/comments"
+STUB_RACE=1 PR=10 run $'## Changelog\nAdded: y'
+check "race: closes the newer duplicate" "$(logged 'issue close 7 ')"
+check "race: does not close the oldest" "$([ "$(logged 'issue close 6 ')" = no ] && echo ok || echo no)"
+check "race: does not pin the duplicate" "$([ "$(logged 'pinIssue')" = no ] && echo ok || echo no)"
+check "race: posts to the oldest" "$(logged 'issue comment 6 ')"
 
 exit "$fail"

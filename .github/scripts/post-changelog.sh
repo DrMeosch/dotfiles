@@ -22,17 +22,30 @@ title="${PR_TITLE//@/@$zwsp}"
 comment="$(printf '%s\n**%s** - [#%s](%s) %s\n\nMerge commit: [`%s`](%s)\n\n%s\n' \
   "$marker" "${MERGED_AT%%T*}" "$PR_NUMBER" "$PR_URL" "$title" "${MERGE_SHA:0:7}" "$commit_url" "$section")"
 
-# Only the issue created by the Actions bot counts: anyone can open one titled "Changelog".
-number="$(gh issue list --state all --author 'github-actions[bot]' --limit 100 --json number,title \
-  --jq "[.[] | select(.title == \"$TITLE\")] | min_by(.number) | .number // empty")"
+# Numbers of the bot's "Changelog" issues, oldest first. Only the Actions bot's own issue
+# counts: anyone can open one titled "Changelog".
+changelog_issues() {
+  gh issue list --state all --author 'github-actions[bot]' --limit 100 --json number,title \
+    --jq "[.[] | select(.title == \"$TITLE\")] | sort_by(.number) | .[].number"
+}
+
+number="$(changelog_issues | head -n1)"
 
 if [ -z "$number" ]; then
   url="$(gh issue create --title "$TITLE" --body "Running list of the changes merged into this repository. One comment per merged pull request, added automatically.")"
-  number="${url##*/}"
-  echo "created issue #$number"
-  node_id="$(gh issue view "$number" --json id --jq .id)"
-  gh api graphql -f query='mutation($id: ID!) { pinIssue(input: {issueId: $id}) { issue { number } } }' \
-    -f id="$node_id" >/dev/null || echo "warning: could not pin issue #$number" >&2
+  mine="${url##*/}"
+  echo "created issue #$mine"
+  # Runs are not serialized, so a concurrent run may have created one too: keep the oldest.
+  number="$(changelog_issues | head -n1)"
+  number="${number:-$mine}"
+  if [ "$number" = "$mine" ]; then
+    node_id="$(gh issue view "$mine" --json id --jq .id)"
+    gh api graphql -f query='mutation($id: ID!) { pinIssue(input: {issueId: $id}) { issue { number } } }' \
+      -f id="$node_id" >/dev/null || echo "warning: could not pin issue #$mine" >&2
+  fi
+  for dup in $(changelog_issues | grep -vx "$number" || true); do
+    gh issue close "$dup" --reason "not planned" --comment "Duplicate of #$number."
+  done
 elif gh api --paginate "repos/${GH_REPO}/issues/${number}/comments" --jq '.[].body' | grep -qxF -- "$marker"; then
   echo "skip: PR #${PR_NUMBER} is already in issue #$number"; exit 0
 fi
