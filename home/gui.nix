@@ -15,9 +15,10 @@ let
     (builtins.attrNames (builtins.readDir "${inputs.alacritty-theme}/themes"));
   themeTarget = n: ".config/alacritty/themes/${n}";
 
-  # Theme switch scripts, linked into ~/.local/bin: atc switches Alacritty, tmux
-  # and Neovim between dark and light, the dwm-* scripts call it.
-  scripts = [ "atc" "dwm-dark.sh" "dwm-light.sh" ];
+  # dwm lives in its own repository, checked out (not managed) in ~/.local/src/dwm
+  # so local builds and edits stay; its theme scripts are linked from there.
+  dwmDir = "${config.home.homeDirectory}/.local/src/dwm";
+  dwmScripts = [ "dwm-dark.sh" "dwm-light.sh" ];
 in
 {
   home.packages = with pkgs; [
@@ -50,8 +51,15 @@ in
   // lib.genAttrs (map themeTarget upstreamThemes) (t: {
     source = "${inputs.alacritty-theme}/themes/${baseNameOf t}";
   })
-  // lib.genAttrs (map (n: ".local/bin/${n}") scripts) (t: {
-    source = config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/${t}";
+  # atc switches Alacritty, tmux and Neovim between dark and light; it is edited
+  # in place like the config.
+  // {
+    ".local/bin/atc".source =
+      config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.local/bin/atc";
+  }
+  # The dwm-* scripts call atc and set dwm's colors.
+  // lib.genAttrs (map (n: ".local/bin/${n}") dwmScripts) (t: {
+    source = config.lib.file.mkOutOfStoreSymlink "${dwmDir}/docs/${baseNameOf t}";
   });
 
   home.sessionPath = [ "${config.home.homeDirectory}/.local/bin" ];
@@ -74,6 +82,19 @@ in
     if [ ! -e "$HOME/.config/alacritty/current-theme.toml" ]; then
       run mkdir -p "$HOME/.config/alacritty"
       run cp --no-preserve=mode "${ownThemesDir}/rose-pine-moon.toml" "$HOME/.config/alacritty/current-theme.toml"
+    fi
+  '';
+
+  # Clone dwm once, when ~/.local/src/dwm is missing. An existing checkout is
+  # never pulled, reset or overwritten. A failed clone (offline, say) only warns:
+  # the dwm-* links stay dangling until the next rebuild.
+  home.activation.dwmCheckout = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    if [ ! -e "${dwmDir}" ]; then
+      echo "Cloning dwm into ${dwmDir}"
+      run mkdir -p "$(dirname "${dwmDir}")"
+      if ! GIT_TERMINAL_PROMPT=0 run ${pkgs.git}/bin/git clone --quiet https://github.com/DrMeosch/dwm.git "${dwmDir}"; then
+        echo "warning: could not clone dwm; the dwm-dark.sh and dwm-light.sh links will not work until a later rebuild succeeds" >&2
+      fi
     fi
   '';
 }

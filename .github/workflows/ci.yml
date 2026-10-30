@@ -82,7 +82,7 @@ jobs:
 
       # Upgrade from the old single-symlink Alacritty layout, in a throwaway home.
       - name: Alacritty layout migration
-        run: ./.github/scripts/test-alacritty-migration.sh
+        run: ./.github/scripts/test-activation.sh
 
       # A changed flake input needs a committed lock bump.
       - name: flake.lock matches flake.nix

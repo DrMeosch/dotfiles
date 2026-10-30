@@ -1,20 +1,24 @@
 #!/usr/bin/env bash
-# Upgrade test for the Alacritty config layout.
+# Activation test: the real configuration, applied to a throwaway $HOME.
 #
-# Older revisions linked the whole ~/.config/alacritty directory to the repo's
-# home/.config/alacritty. gui.nix now links the files inside a real directory
-# (so the upstream themes can sit next to ours). On a machine still on the old
-# layout, home-manager used to write the new per-file links *through* the old
-# directory symlink, into the repo checkout: alacritty.toml became a symlink to
-# itself and the upstream theme links landed next to the tracked files.
+# 1. Upgrade from the old Alacritty layout. Older revisions linked the whole
+#    ~/.config/alacritty directory to the repo's home/.config/alacritty. gui.nix
+#    now links the files inside a real directory (so the upstream themes can sit
+#    next to ours). On a machine still on the old layout, home-manager used to
+#    write the new per-file links *through* the old directory symlink, into the
+#    repo checkout: alacritty.toml became a symlink to itself and the upstream
+#    theme links landed next to the tracked files. The upgrade must replace the
+#    old symlink with a real directory and leave the repo checkout untouched.
+# 2. The dwm checkout in ~/.local/src/dwm: cloned when missing, never touched
+#    when present, and a failed clone (no network) only warns. The clone URL is
+#    redirected to a local fixture repository with git's url.<base>.insteadOf, so
+#    the test needs no network and still fails if the URL in gui.nix changes.
 #
-# This test starts from the old layout in a throwaway $HOME, activates the real
-# ubuntu configuration (the same generation `make` applies, only with a
-# different home directory), and checks that the upgrade replaced the old
-# symlink with a real directory and left the repo checkout untouched. Run it
-# from anywhere with Nix on PATH; it never touches the real $HOME.
+# It activates the real ubuntu configuration (the same generation `make` applies,
+# only with a different home directory). Run it from anywhere with Nix on PATH; it
+# never touches the real $HOME.
 #
-# Usage: test-alacritty-migration.sh
+# Usage: test-activation.sh
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
@@ -64,18 +68,41 @@ pkg="$(nix build --no-link --print-out-paths --no-write-lock-file --impure \
       };
     in cfg.activationPackage")"
 
+# -- a stand-in for the dwm repository: the two scripts under docs/
+fixture="$work/dwm-fixture.git"
+mkdir "$work/dwm-src"
+(cd "$work/dwm-src" && git init -q && mkdir docs &&
+  printf '#!/bin/sh\necho dark\n' >docs/dwm-dark.sh && printf '#!/bin/sh\necho light\n' >docs/dwm-light.sh &&
+  chmod +x docs/*.sh && git add . &&
+  git -c user.name=t -c user.email=t@example.com commit -q -m scripts &&
+  git clone -q --bare . "$fixture")
+dwm="$home/.local/src/dwm"
+
+# Redirect the dwm clone URL to $1 (a path), for the git inside the activation.
+dwm_remote() {
+  export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="url.$1.insteadOf" GIT_CONFIG_VALUE_0=https://github.com/DrMeosch/dwm.git
+}
+
 activate() {
   # -b bak, like rebuild.sh: a file in the way is renamed rather than aborting the run.
   env -u XDG_CONFIG_HOME -u XDG_DATA_HOME -u XDG_STATE_HOME -u XDG_CACHE_HOME \
     HOME="$home" HOME_MANAGER_BACKUP_EXT=bak "$pkg/activate"
 }
-echo "== first activation, from the old layout"
+dwm_remote "$fixture"
+echo "== first activation, from the old layout, dwm not cloned yet"
 activate 2>&1 | tee "$work/first.log"
 # The seeded current-theme.toml is state: a later activation must not overwrite it.
 if [ -f "$home/.config/alacritty/current-theme.toml" ]; then
   cp "$home/.config/alacritty/current-theme.toml" "$work/seed"
   echo "# edited by atc" >"$home/.config/alacritty/current-theme.toml"
 fi
+dwm_head="$(git -C "$dwm" rev-parse HEAD)"
+# A local build and an edit in the checkout, and a newer commit upstream: a rebuild
+# must leave the checkout exactly as it is (no pull, reset or overwrite).
+touch "$dwm/local-build"
+echo "# local edit" >>"$dwm/docs/dwm-dark.sh"
+(cd "$work/dwm-src" && echo upstream >news && git add news &&
+  git -c user.name=t -c user.email=t@example.com commit -q -m news && git push -q "$fixture" HEAD)
 echo "== second activation, must change nothing"
 activate 2>&1 | tee "$work/second.log"
 
@@ -110,14 +137,33 @@ else
   bad "current-theme.toml was not seeded from rose-pine-moon"
 fi
 
-for s in atc dwm-dark.sh dwm-light.sh; do
+l="$home/.local/bin/atc"
+if [ -L "$l" ] && [ "$(readlink -f "$l")" = "$checkout/home/.local/bin/atc" ] && [ -x "$l" ]; then
+  ok "~/.local/bin/atc -> the executable in the checkout"
+else
+  bad "~/.local/bin/atc does not resolve to the executable $checkout/home/.local/bin/atc"
+fi
+
+# -- dwm: cloned once, links into the checkout, an existing checkout left alone
+for s in dwm-dark.sh dwm-light.sh; do
   l="$home/.local/bin/$s"
-  if [ -L "$l" ] && [ "$(readlink -f "$l")" = "$checkout/home/.local/bin/$s" ] && [ -x "$l" ]; then
-    ok "~/.local/bin/$s -> the executable in the checkout"
+  if [ -L "$l" ] && [ "$(readlink -f "$l")" = "$dwm/docs/$s" ] && [ -x "$l" ]; then
+    ok "~/.local/bin/$s -> the executable $dwm/docs/$s"
   else
-    bad "~/.local/bin/$s does not resolve to the executable $checkout/home/.local/bin/$s"
+    bad "~/.local/bin/$s does not resolve to the executable $dwm/docs/$s"
   fi
 done
+if grep -q 'Cloning dwm' "$work/first.log" && ! grep -q 'Cloning dwm' "$work/second.log"; then
+  ok "dwm was cloned on the first activation only, with a message"
+else
+  bad "expected the dwm clone message on the first activation only"
+fi
+if [ "$(git -C "$dwm" rev-parse HEAD)" = "$dwm_head" ] && [ -e "$dwm/local-build" ] &&
+  grep -q '# local edit' "$dwm/docs/dwm-dark.sh" && [ ! -e "$dwm/news" ]; then
+  ok "an existing dwm checkout is untouched (same commit, local edit and build kept, no pull)"
+else
+  bad "the existing dwm checkout was modified"
+fi
 
 own=0
 for f in "$REPO"/home/.config/alacritty/themes/*.toml; do
@@ -141,6 +187,22 @@ if snapshot | cmp -s - "$work/before"; then
 else
   bad "the repo checkout changed:"
   snapshot | diff "$work/before" - | head -20 || true
+fi
+
+# -- no network: the clone fails, activation still succeeds and only warns
+rm -rf "$dwm"
+dwm_remote "$work/does-not-exist.git"
+echo "== third activation, dwm missing and unreachable"
+if activate >"$work/third.log" 2>&1; then
+  ok "activation succeeds when the dwm clone fails"
+else
+  bad "activation failed when the dwm clone failed:"; tail -20 "$work/third.log"
+fi
+cat "$work/third.log"
+if grep -q 'warning: could not clone dwm' "$work/third.log" && [ ! -e "$dwm" ]; then
+  ok "a failed dwm clone only warns and leaves no checkout behind"
+else
+  bad "expected a warning and no ~/.local/src/dwm after a failed clone"
 fi
 
 exit "$fail"
