@@ -57,6 +57,47 @@ else
   bad "atc changed the repo checkout:"; (cd "$REPO" && git status --short)
 fi
 
+# -- btop: only the color_theme line of btop.conf changes ----------------------
+conf="$HOME/.config/btop/btop.conf"
+rm -f "$conf"; "$atc" dark >/dev/null
+[ ! -e "$conf" ] && ok "atc skips a missing btop.conf" || bad "atc created btop.conf"
+mkdir -p "$HOME/.config/btop"
+printf '#? Config\ncolor_theme = "DWM-Pink-Light"\nsave_config_on_exit = false\ntheme_background = False' >"$conf"
+chmod 640 "$conf"
+want_conf() { # $1 theme: the seed with only the color_theme value swapped
+  printf '#? Config\ncolor_theme = "%s"\nsave_config_on_exit = false\ntheme_background = False' "$1"
+}
+for pair in dark:DWM-Pink-Dark light:DWM-Pink-Light dark:DWM-Pink-Dark; do
+  "$atc" "${pair%%:*}" >/dev/null
+  if cmp -s "$conf" <(want_conf "${pair#*:}") && [ "$(stat -c %a "$conf")" = 640 ]; then
+    ok "atc ${pair%%:*} -> btop color_theme ${pair#*:}, other lines and mode untouched"
+  else
+    bad "atc ${pair%%:*} left btop.conf as: $(cat "$conf")"
+  fi
+done
+printf 'save_config_on_exit = false\n' >"$conf"
+"$atc" light >/dev/null
+[ "$(cat "$conf")" = $'save_config_on_exit = false\ncolor_theme = "DWM-Pink-Light"' ] && ok "atc adds color_theme when btop.conf has none" || bad "btop.conf without color_theme became: $(cat "$conf")"
+[ -z "$(ls "$HOME/.config/btop" | grep -v '^btop.conf$')" ] && ok "atc left no temp files in the btop directory" || bad "stray files in the btop directory"
+
+# A running btop is told to reload with SIGUSR2. A stand-in binary (a copy of
+# sleep, which reports a version above 1.3.1 and has no SIGUSR2 handler) dies from
+# the signal, so its death shows atc sent it; an unrelated process must survive.
+fake="$work/fake"; mkdir -p "$fake"
+cp "$(command -v sleep)" "$fake/btop"
+"$fake/btop" 30 & fake_pid=$!
+{ # bash reports the signal death of the stand-in on stderr; keep that out of the log
+  sleep 0.5
+  "$atc" dark >/dev/null
+  sleep 0.5
+  if kill -0 "$fake_pid" 2>/dev/null; then bad "atc did not signal the running btop"; kill "$fake_pid"; else ok "atc signals a running btop to reload"; fi
+  wait "$fake_pid" || true
+} 2>/dev/null
+sleep 30 & other=$!
+"$atc" light >/dev/null
+if kill -0 "$other" 2>/dev/null; then ok "atc leaves other processes alone"; else bad "atc killed an unrelated process"; fi
+kill "$other" 2>/dev/null || true
+
 # -- Neovim picks the colorscheme from the state file ---------------------------
 colorscheme() {
   nvim --headless -u NONE --cmd "set rtp^=$REPO/home/.config/nvim" \
