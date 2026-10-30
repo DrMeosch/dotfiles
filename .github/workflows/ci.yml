@@ -80,7 +80,8 @@ jobs:
       - name: Theme switch (atc and Neovim)
         run: ./.github/scripts/test-theme-switch.sh
 
-      # Upgrade from the old single-symlink Alacritty layout, in a throwaway home.
+      # Upgrade from the old single-symlink Alacritty layout and the dwm checkout,
+      # in a throwaway home.
       - name: Alacritty layout migration
         run: ./.github/scripts/test-activation.sh
 
