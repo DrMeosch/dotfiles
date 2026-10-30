@@ -41,7 +41,6 @@ if [ -z "$number" ]; then
   url="$(gh issue create --title "$TITLE" --body "Running list of the changes merged into this repository. One comment per merged pull request, added automatically.")"
   mine="${url##*/}"
   echo "created issue #$mine"
-  gh issue lock "$mine" >/dev/null || echo "warning: could not lock issue #$mine" >&2
   # Runs are not serialized, so a concurrent run may have created one too: keep the oldest.
   number="$(oldest_issue)"
   number="${number:-$mine}"

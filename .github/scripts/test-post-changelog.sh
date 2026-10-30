@@ -16,7 +16,7 @@ case "$1 $2" in
     case "$*" in *"--author github-actions[bot]"*) ;; *) echo 3; exit 0 ;; esac
     [ -e "$STUB_DIR/issue" ] || exit 0
     jq -Rn '[inputs | {number: tonumber, title: "Changelog"}]' "$STUB_DIR/issue" | jq -r "${@: -1}" ;;
-  "issue close"|"issue lock") ;;
+  "issue close") ;;
   "issue create") [ -n "${STUB_RACE:-}" ] && echo 6 >> "$STUB_DIR/issue"; echo 7 >> "$STUB_DIR/issue"; echo "https://github.com/o/r/issues/7" ;;
   "issue view")   echo "NODE" ;;
   "issue comment") jq -cn --arg b "$5" '{user: {login: "github-actions[bot]"}, body: $b}' >> "$STUB_DIR/comments" ;;
@@ -40,7 +40,6 @@ ncomments() { jq -s '[.[] | select(.user.login == "github-actions[bot]")] | leng
 run $'## Changelog\nFixed: the thing.'
 check "creates the issue when missing" "$(logged 'issue create --title Changelog')"
 check "pins the new issue" "$(logged 'pinIssue')"
-check "locks the new issue" "$(logged 'issue lock 7')"
 check "comments on the new issue" "$(logged 'issue comment 7 ')"
 check "comment has marker, date, PR and merge commit links" \
   "$(jq -r .body "$tmp/comments" | tr '\n' ' ' | grep -q 'pr=5 -->.*2026-10-30.*pull/5.*commit/0123456789abcdef.*Fixed: the thing' && echo ok || echo no)"
