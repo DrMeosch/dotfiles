@@ -7,9 +7,16 @@
 
     home-manager.url = "github:nix-community/home-manager/release-26.05";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
+
+    # The official Alacritty theme collection (TOML), pinned in flake.lock.
+    # Not a flake, just a source tree; home/gui.nix links it into ~/.config/alacritty/themes.
+    alacritty-theme = {
+      url = "github:alacritty/alacritty-theme";
+      flake = false;
+    };
   };
 
-  outputs = { self, nixpkgs, home-manager, ... }:
+  outputs = { self, nixpkgs, home-manager, ... }@inputs:
     let
       # The one username line to change if this isn't your machine.
       # bootstrap.sh (via `make`) offers to rewrite this for you if your login name differs.
@@ -27,7 +34,7 @@
       mkHome = modules:
         home-manager.lib.homeManagerConfiguration {
           inherit pkgs;
-          extraSpecialArgs = { inherit user; };
+          extraSpecialArgs = { inherit user inputs; };
           modules = [ ./home/common.nix ] ++ modules;
         };
 

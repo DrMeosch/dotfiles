@@ -16,7 +16,7 @@ A `home-manager switch` builds:
 - **Shell**: zsh with autosuggestions, syntax highlighting, fzf keybindings, and a [starship](https://starship.rs/) prompt (no oh-my-zsh, no powerlevel10k)
 - **Multiplexer**: tmux (prefix `C-a`, vi keys) with plugins managed by [tpm](https://github.com/tmux-plugins/tpm), which the config clones and installs on first start (needs `git`)
 - **Editor**: [LazyVim](https://www.lazyvim.org/)-based Neovim config (lazy.nvim, neogit, vimwiki, rendered Markdown, devcontainer LSP, neovide settings)
-- **Terminal**: Alacritty with a collection of color themes (rose-pine moon by default) - desktop targets only
+- **Terminal**: Alacritty with a few hand-converted color themes plus the whole [alacritty-theme](https://github.com/alacritty/alacritty-theme) collection (rose-pine moon by default) - desktop targets only
 - **CLI tools**: ripgrep, fd, fzf, jq, lazygit, git, rustup, tree-sitter, node, marksman
 - **Agent configs**: one shared `AGENTS.md` for Claude / Codex / opencode, plus Claude and Pi settings
 - **Font**: [Geist Mono Nerd Font](https://github.com/ryanoasis/nerd-fonts) (family `GeistMono Nerd Font`; Nix on the desktop targets, `windows/setup.ps1` for Windows Terminal on WSL2)
@@ -41,7 +41,7 @@ home/
   ubuntu.nix         # Ubuntu-only tweaks
   wsl.nix            # WSL2 (either distro): no GUI (clipboard bridge notes)
   .config/nvim/      # Neovim config (edited in place)
-  .config/alacritty/ # alacritty.toml + themes/
+  .config/alacritty/ # alacritty.toml + our own themes/ (the upstream collection comes from the flake input)
   .tmux.conf         # tmux config (plugins via tpm)
   .tmux/             # tmux themes (dark/light.conf; current-theme.conf is seeded locally)
   AGENTS.md          # shared agent instructions
@@ -261,7 +261,7 @@ rate limit (HTTP 403).
 
 - **Username**: `make` offers to set it on the first run, or change the single `user = "ag"` line in `flake.nix`. Everything (home directory, symlink paths) threads from it.
 - **CPU architecture**: `system` in `flake.nix` (`x86_64-linux` by default; `aarch64-linux` for ARM).
-- **Default terminal theme**: change the `general.import` line in `home/.config/alacritty/alacritty.toml` to any file in `home/.config/alacritty/themes/` (dracula, nord, gruvbox, night-owl, pink-moon, seoul256, ayu-light, firewatch, ...).
+- **Default terminal theme**: change the `general.import` line in `home/.config/alacritty/alacritty.toml` to any file in `~/.config/alacritty/themes/`: ours from `home/.config/alacritty/themes/` (gruvbox, night-owl, pink-moon, seoul256, ayu-light, firewatch, ...) or any of the upstream themes (`catppuccin_mocha.toml`, `tokyo_night.toml`, ...). The upstream collection is the `alacritty-theme` flake input, pinned in `flake.lock` and linked read-only from the Nix store; `nix flake update alacritty-theme` moves the pin. Where both have a file of the same name (`dracula`, `nord`, `seoul256-light`) ours wins. A new theme file added to the repo gets its link on the next rebuild.
 
 **Git identity** is deliberately not set, so each machine sets its own:
 
