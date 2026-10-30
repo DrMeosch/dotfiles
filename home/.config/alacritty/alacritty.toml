@@ -2,8 +2,9 @@
 # Managed by the dotfiles repo; edit this file in place and it takes effect
 # on the next Alacritty launch (no rebuild needed - it is symlinked out of the store).
 
-# Active color theme. Swap this line for any file in themes/ (dracula, nord,
-# gruvbox, night-owl, pink-moon, seoul256, ayu-light, firewatch, ...).
+# Active color theme. Swap this line for any file in ~/.config/alacritty/themes/:
+# ours (gruvbox, night-owl, pink-moon, seoul256, ayu-light, firewatch, ...) or the
+# upstream alacritty-theme collection (catppuccin_mocha, tokyo_night, ...).
 general.import = ["~/.config/alacritty/themes/rose-pine-moon.toml"]
 
 [font]
