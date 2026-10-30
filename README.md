@@ -36,12 +36,13 @@ scripts/
   detect-target.sh   # the one place that picks arch / ubuntu / wsl-arch / wsl-ubuntu
 home/
   common.nix         # shared: packages, zsh, starship, tmux, agent configs, symlinks
-  gui.nix            # desktop-only: Alacritty + fonts (arch, ubuntu)
+  gui.nix            # desktop-only: Alacritty, theme switch scripts + fonts (arch, ubuntu)
   arch.nix           # Arch-only tweaks
   ubuntu.nix         # Ubuntu-only tweaks
   wsl.nix            # WSL2 (either distro): no GUI (clipboard bridge notes)
   .config/nvim/      # Neovim config (edited in place)
   .config/alacritty/ # alacritty.toml + our own themes/ (the upstream collection comes from the flake input)
+  .local/bin/        # atc (dark/light theme switch); the dwm-dark.sh / dwm-light.sh links point into the dwm checkout
   .tmux.conf         # tmux config (plugins via tpm)
   .tmux/             # tmux themes (dark/light.conf; current-theme.conf is seeded locally)
   AGENTS.md          # shared agent instructions
@@ -203,6 +204,26 @@ make update
 
 `make TARGET=...` and `make YES=1` work with every command.
 
+### Upgrading from the single-symlink Alacritty layout
+
+Older revisions linked the whole `~/.config/alacritty` directory to `home/.config/alacritty` in the repo. It is
+now a real directory holding one link per file (our config and themes into the repo, the upstream themes into the
+Nix store). The next `make update` replaces the old directory symlink by itself (only the link, never the repo directory
+it pointed to) and says so on screen, so nothing needs doing.
+
+A checkout that already went through a rebuild of the *intermediate* revision (the one that linked the new files
+through the old symlink) is damaged: `home/.config/alacritty/alacritty.toml` has become a link to itself (`touch:
+cannot touch ...alacritty.toml: Too many levels of symbolic links`) and the upstream theme links landed in
+`home/.config/alacritty/themes/`. Repair it once, then update with `make update` (it pulls this fix and applies it; a plain `make` would apply the revision you are on again, before the fix is there, and bring the damage back):
+
+```sh
+cd ~/.dotfiles
+git checkout -- home/.config/alacritty          # restores alacritty.toml and our themes
+git clean -nx -- home/.config/alacritty         # lists the stray links and the ignored *.bak files; check the list
+git clean -fx -- home/.config/alacritty         # removes them
+make update
+```
+
 ### Pinned inputs
 
 `flake.lock` pins `nixpkgs` and `home-manager` to exact revisions, so every machine and every CI run
@@ -244,7 +265,9 @@ and the `wsl` alias) and builds `packages.windows` (the Windows-side files), wit
 tmux loads `~/.tmux.conf` without errors, `nvim --headless +qa` exits 0, a `.md` file outside `~/vimwiki` opens as `markdown` and one inside it as `vimwiki`; on the desktop targets also that `fc-list` / `fc-match` find `GeistMono Nerd Font`). The Ubuntu job also runs
 `make help` and `make check`, plus `.github/scripts/test-detect-target.sh`, which checks the four-way
 target detection (including WSL2 Arch and Arch/Ubuntu derivatives) against fixture files, and
-`.github/scripts/test-make-update.sh`, which drives `make update` against a throwaway origin, and fails if `flake.lock` no longer matches `flake.nix` (a changed input needs a committed lock bump). Jobs: `ubuntu` (ubuntu-latest), `arch`
+`.github/scripts/test-make-update.sh`, which drives `make update` against a throwaway origin,
+`.github/scripts/test-activation.sh`, which activates the real configuration in a throwaway home and checks the upgrade from the old single-symlink Alacritty layout (real directory, working links, repo checkout untouched) and the dwm checkout (cloned when missing, left alone when present, only a warning without network),
+`.github/scripts/test-theme-switch.sh`, which runs `atc` and Neovim's colorscheme choice against a throwaway home with the state file present and absent, and a check that fails if `flake.lock` no longer matches `flake.nix` (a changed input needs a committed lock bump). Jobs: `ubuntu` (ubuntu-latest), `arch`
 (archlinux container), `wsl` (Ubuntu 24.04 on real WSL2 on windows-latest, target `wsl-ubuntu`; it also runs `make windows` and checks the
 files arrive on the Windows side as real files), `windows-files` (builds `packages.windows` on Linux and uploads it) and `windows`
 (downloads those files to `%USERPROFILE%\.dotfiles-windows` on windows-latest, runs `winget configure validate` and `winget configure test`
@@ -275,7 +298,9 @@ checks out or runs pull request code and only has `issues: write` and `pull-requ
 
 - **Username**: `make` offers to set it on the first run, or change the single `user = "ag"` line in `flake.nix`. Everything (home directory, symlink paths) threads from it.
 - **CPU architecture**: `system` in `flake.nix` (`x86_64-linux` by default; `aarch64-linux` for ARM).
-- **Default terminal theme**: change the `general.import` line in `home/.config/alacritty/alacritty.toml` to any file in `~/.config/alacritty/themes/`: ours from `home/.config/alacritty/themes/` (gruvbox, night-owl, pink-moon, seoul256, ayu-light, firewatch, ...) or any of the upstream themes (`catppuccin_mocha.toml`, `tokyo_night.toml`, ...). The upstream collection is the `alacritty-theme` flake input, pinned in `flake.lock` and linked read-only from the Nix store; `nix flake update alacritty-theme` moves the pin. Where both have a file of the same name (`dracula`, `nord`, `seoul256-light`) ours wins. A new theme file added to the repo gets its link on the next rebuild.
+- **Terminal theme**: `alacritty.toml` imports `~/.config/alacritty/current-theme.toml`, a copy of one file from `~/.config/alacritty/themes/`: ours from `home/.config/alacritty/themes/` (gruvbox, night-owl, pink-moon, seoul256, ayu-light, firewatch, ...) or any of the upstream themes (`catppuccin_mocha.toml`, `tokyo_night.toml`, ...). The upstream collection is the `alacritty-theme` flake input, pinned in `flake.lock` and linked read-only from the Nix store; `nix flake update alacritty-theme` moves the pin. Where both have a file of the same name (`dracula`, `nord`, `seoul256-light`) ours wins. A new theme file added to the repo gets its link on the next rebuild. `current-theme.toml` is untracked state: a rebuild creates it from rose-pine moon when it is missing and never touches it again, so to try a theme by hand just `cp ~/.config/alacritty/themes/<theme>.toml ~/.config/alacritty/current-theme.toml`. If the file is deleted, Alacritty only logs the missing import and starts with its built-in colors until the next rebuild or `atc`.
+- **Dark / light switch**: `atc [dark|light|toggle]` (linked into `~/.local/bin`, which a rebuild adds to `PATH`) switches everything at once: it copies `dracula_plus` (dark) or `github_light_colorblind` (light) over `current-theme.toml` and touches `alacritty.toml` so Alacritty reloads, copies `~/.tmux/{dark,light}.conf` over `current-theme.conf` and reloads a running tmux, switches every running Neovim instance, and records the choice in `~/.config/atc-theme`. Neovim reads that file when it starts (dark when it is missing or unreadable), so a switch never edits a tracked file. `dwm-dark.sh` and `dwm-light.sh` come from the dwm checkout (below) and call `atc`, set the GTK/xfconf theme and reload dwm's colors.
+- **dwm**: the desktop targets keep a checkout of [DrMeosch/dwm](https://github.com/DrMeosch/dwm) in `~/.local/src/dwm`. A rebuild clones it when the directory is missing and prints a note; it never pulls, resets or overwrites an existing checkout, so local builds and edits stay, and a failed clone (no network) only prints a warning and is retried by the next rebuild. dwm is built from that checkout as described in its README (`make && sudo make install`); the dotfiles do not build or install it. `~/.local/bin/dwm-dark.sh` and `~/.local/bin/dwm-light.sh` link to `~/.local/src/dwm/docs/dwm-dark.sh` and `dwm-light.sh`, so they follow whatever is checked out there (and dangle until the clone exists).
 
 **Git identity** is deliberately not set, so each machine sets its own:
 

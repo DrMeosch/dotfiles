@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+config="${XDG_CONFIG_HOME:-$HOME/.config}"
+state="$config/atc-theme"
+arg="${1:-toggle}"
+
+current="$(cat "$state" 2>/dev/null || echo dark)"
+
+if [[ "$arg" == toggle ]]; then
+  [[ "$current" == dark ]] && theme=light || theme=dark
+else
+  theme="$arg"
+fi
+
+case "$theme" in
+dark)
+  alacritty_color=dracula_plus
+  tmux_color=dark
+  nvim_colorscheme=dracula
+  ;;
+light)
+  alacritty_color=github_light_colorblind
+  tmux_color=light
+  nvim_colorscheme=github_light_colorblind
+  ;;
+*)
+  echo "Usage: atc [dark|light|toggle]" >&2
+  exit 2
+  ;;
+esac
+
+alacritty_dir="$config/alacritty"
+tmux_dir="$HOME/.tmux"
+
+# Update Alacritty's imported theme. Touch the main config to prompt reload.
+cat "$alacritty_dir/themes/$alacritty_color.toml" >"$alacritty_dir/current-theme.toml"
+touch "$alacritty_dir/alacritty.toml"
+
+# Reload tmux's theme only if a tmux session is already running.
+if tmux has-session 2>/dev/null; then
+  cp "$tmux_dir/$tmux_color.conf" "$tmux_dir/current-theme.conf"
+  tmux source-file "$tmux_dir/current-theme.conf"
+fi
+
+# Switch every discoverable, listening Neovim instance.
+if [[ -n "${XDG_RUNTIME_DIR:-}" ]]; then
+  while IFS= read -r -d '' sock; do
+    nvim --server "$sock" \
+      --remote-expr "execute('colorscheme $nvim_colorscheme')" \
+      >/dev/null 2>&1 || true
+  done < <(find "$XDG_RUNTIME_DIR" -type s -name 'nvim-*.sock' -print0 2>/dev/null)
+fi
+
+printf '%s\n' "$theme" >"$state"
+echo "Theme: $theme"

@@ -77,6 +77,14 @@ jobs:
       - name: Smoke test
         run: EXPECT_FONT=1 ./.github/scripts/smoke-test.sh
 
+      - name: Theme switch (atc and Neovim)
+        run: ./.github/scripts/test-theme-switch.sh
+
+      # Upgrade from the old single-symlink Alacritty layout and the dwm checkout,
+      # in a throwaway home.
+      - name: Home activation (Alacritty layout migration, dwm checkout)
+        run: ./.github/scripts/test-activation.sh
+
       # A changed flake input needs a committed lock bump.
       - name: flake.lock matches flake.nix
         run: |

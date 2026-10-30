@@ -51,6 +51,14 @@ check_link ~/.config/nvim home/.config/nvim
 check_link ~/.tmux.conf home/.tmux.conf
 check_link ~/.tmux/dark.conf home/.tmux/dark.conf
 check_link ~/.tmux/light.conf home/.tmux/light.conf
+# gui.nix is not imported on WSL, so the Alacritty files are only expected where the font is.
+if [ "${EXPECT_FONT:-}" = 1 ]; then
+  [ -d ~/.config/alacritty ] && [ ! -L ~/.config/alacritty ] && ok "~/.config/alacritty is a real directory" || bad "~/.config/alacritty is not a real directory"
+  check_link ~/.config/alacritty/alacritty.toml home/.config/alacritty/alacritty.toml
+  check_link ~/.config/alacritty/themes/rose-pine-moon.toml home/.config/alacritty/themes/rose-pine-moon.toml
+  [ -f ~/.config/alacritty/current-theme.toml ] && ok "~/.config/alacritty/current-theme.toml seeded" || bad "~/.config/alacritty/current-theme.toml missing"
+  check_link ~/.local/bin/atc home/.local/bin/atc
+fi
 [ -f ~/.tmux/current-theme.conf ] && ok "~/.tmux/current-theme.conf seeded" || bad "~/.tmux/current-theme.conf missing"
 
 # -- zsh starts as an interactive shell with the config -----------------------
