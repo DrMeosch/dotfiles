@@ -57,22 +57,21 @@ in
     ".local/bin/atc".source =
       config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.local/bin/atc";
   }
-  # The dwm-* scripts call atc and set dwm's colors.
   # Session plumbing so Chromium and other portal clients follow the dark/light
-  # switch: the portal backend preference, the X session hook that exports
-  # DISPLAY/XAUTHORITY to the systemd user environment, and a check that the
+  # switch: the portal backend preference, the hook that exports
+  # DISPLAY/XAUTHORITY to the systemd user environment (x11-session-env, which
+  # the X session start file has to call), and a check that the
   # portal answers. xdg-desktop-portal and xdg-desktop-portal-gtk come from the
   # distro, not from here.
   // {
     ".config/xdg-desktop-portal/portals.conf".source =
       config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.config/xdg-desktop-portal/portals.conf";
-    ".xprofile".source =
-      config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.xprofile";
     ".local/bin/x11-session-env".source =
       config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.local/bin/x11-session-env";
     ".local/bin/portal-color-scheme".source =
       config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.local/bin/portal-color-scheme";
   }
+  # The dwm-* scripts call atc and set dwm's colors.
   // lib.genAttrs (map (n: ".local/bin/${n}") dwmScripts) (t: {
     source = config.lib.file.mkOutOfStoreSymlink "${dwmDir}/docs/${baseNameOf t}";
   });

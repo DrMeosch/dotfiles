@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Export the X session's DISPLAY and XAUTHORITY to the systemd user manager and
 # D-Bus activated services (xdg-desktop-portal-gtk needs them to start).
-# Meant to run once from the X session startup (~/.xprofile); safe to repeat.
+# Meant to run once from the X session start file (~/.xprofile or ~/.config/x11/xprofile); safe to repeat.
 set -euo pipefail
 
 command -v dbus-update-activation-environment >/dev/null 2>&1 || {

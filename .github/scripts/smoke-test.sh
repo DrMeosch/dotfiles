@@ -59,7 +59,6 @@ if [ "${EXPECT_FONT:-}" = 1 ]; then
   [ -f ~/.config/alacritty/current-theme.toml ] && ok "~/.config/alacritty/current-theme.toml seeded" || bad "~/.config/alacritty/current-theme.toml missing"
   check_link ~/.local/bin/atc home/.local/bin/atc
   check_link ~/.config/xdg-desktop-portal/portals.conf home/.config/xdg-desktop-portal/portals.conf
-  check_link ~/.xprofile home/.xprofile
   check_link ~/.local/bin/x11-session-env home/.local/bin/x11-session-env
   check_link ~/.local/bin/portal-color-scheme home/.local/bin/portal-color-scheme
 fi

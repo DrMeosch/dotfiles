@@ -1,5 +1,0 @@
-# Read by display managers (and by ~/.xinitrc when it sources this file).
-# Hands the X session's DISPLAY and XAUTHORITY to the systemd user manager and
-# D-Bus activated services, so xdg-desktop-portal and its gtk backend can start
-# on demand with access to the display.
-[ -x "$HOME/.local/bin/x11-session-env" ] && "$HOME/.local/bin/x11-session-env"
