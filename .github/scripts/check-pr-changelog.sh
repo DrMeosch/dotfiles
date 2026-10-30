@@ -10,12 +10,13 @@ case "$author" in
 esac
 
 # Text under the first "## Changelog" heading up to the next heading, minus
-# comments, blank lines and CRs.
+# comments, blank lines, bare bullets and type prefixes without text and CRs.
 section="$(printf '%s\n' "${PR_BODY:-}" | tr -d '\r' | awk '
   /^##[[:space:]]+Changelog[[:space:]]*$/ && !seen { seen = 1; on = 1; next }
   on && /^#/ { exit }
   on { print }
-' | sed -e ':a' -e 's/<!--[^>]*-->//g' -e '/<!--/{N;ba' -e '}' | grep -v '^[[:space:]]*$' || true)"
+' | sed -e ':a' -e 's/<!--[^>]*-->//g' -e '/<!--/{N;ba' -e '}' \
+  | grep -Eiv '^[[:space:]]*([-*][[:space:]]*)?((added|changed|fixed|removed|security|deprecated)[[:space:]]*:?[[:space:]]*)?$' || true)"
 
 if [ -z "$section" ]; then
   echo "error: the PR body needs a non-empty '## Changelog' section." >&2
