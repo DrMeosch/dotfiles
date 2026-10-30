@@ -80,6 +80,9 @@ jobs:
       - name: Theme switch (atc and Neovim)
         run: ./.github/scripts/test-theme-switch.sh
 
+      - name: Portal color-scheme check
+        run: ./.github/scripts/test-portal-color-scheme.sh
+
       # Upgrade from the old single-symlink Alacritty layout and the dwm checkout,
       # in a throwaway home.
       - name: Home activation (Alacritty layout migration, dwm checkout)

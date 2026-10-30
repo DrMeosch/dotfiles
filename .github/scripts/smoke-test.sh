@@ -58,6 +58,10 @@ if [ "${EXPECT_FONT:-}" = 1 ]; then
   check_link ~/.config/alacritty/themes/rose-pine-moon.toml home/.config/alacritty/themes/rose-pine-moon.toml
   [ -f ~/.config/alacritty/current-theme.toml ] && ok "~/.config/alacritty/current-theme.toml seeded" || bad "~/.config/alacritty/current-theme.toml missing"
   check_link ~/.local/bin/atc home/.local/bin/atc
+  check_link ~/.config/xdg-desktop-portal/portals.conf home/.config/xdg-desktop-portal/portals.conf
+  check_link ~/.xprofile home/.xprofile
+  check_link ~/.local/bin/x11-session-env home/.local/bin/x11-session-env
+  check_link ~/.local/bin/portal-color-scheme home/.local/bin/portal-color-scheme
 fi
 [ -f ~/.tmux/current-theme.conf ] && ok "~/.tmux/current-theme.conf seeded" || bad "~/.tmux/current-theme.conf missing"
 
