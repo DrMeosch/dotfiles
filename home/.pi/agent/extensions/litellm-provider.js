@@ -9,7 +9,7 @@
 // prices, context window). Claude therefore goes through the gateway's
 // /v1/messages and GPT through its /v1/responses, the way Pi talks to the
 // vendors directly, instead of both through /v1/chat/completions.
-import { getModel } from "@earendil-works/pi-ai";
+import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 
 const CLAUDE = ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"];
 const GPT = ["gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna", "gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-luna", "gpt-5.6-terra"];
@@ -20,20 +20,33 @@ export default function (pi) {
   // Anthropic's client appends /v1/messages itself; OpenAI's expects the /v1.
   const root = configured.replace(/\/+$/, "").replace(/\/v1$/, "");
 
+  const missing = [];
   const derive = (provider, id, baseUrl, { from = id, name } = {}) => {
-    const model = getModel(provider, from);
-    return model && { ...model, id, name: name ?? model.name, provider: "litellm", baseUrl };
+    const model = getBuiltinModel(provider, from);
+    if (!model) {
+      missing.push(`${provider}/${from}`);
+      return undefined;
+    }
+    return { ...model, id, name: name ?? model.name, provider: "litellm", baseUrl };
   };
+
+  const models = [
+    ...CLAUDE.map((id) => derive("anthropic", id, root)),
+    ...GPT.map((id) => derive("openai", id, `${root}/v1`)),
+    // Not in Pi's catalog yet: same prices as gpt-6.1-sol (see models.json).
+    derive("openai", "gpt-6.1-terra", `${root}/v1`, { from: "gpt-6.1-sol", name: "GPT-6.1 Terra" }),
+  ].filter(Boolean);
+
+  // A model missing from Pi's catalog is skipped, which can also change which
+  // litellm model Pi picks by default (settings.json asks for gpt-5.6-luna).
+  if (missing.length) {
+    console.warn(`litellm provider: not in Pi's built-in catalog, skipped: ${missing.join(", ")}`);
+  }
 
   pi.registerProvider("litellm", {
     name: "LiteLLM",
     baseUrl: root,
     apiKey: "$LITELLM_API_KEY",
-    models: [
-      ...CLAUDE.map((id) => derive("anthropic", id, root)),
-      ...GPT.map((id) => derive("openai", id, `${root}/v1`)),
-      // Not in Pi's catalog yet: same prices as gpt-6.1-sol (see models.json).
-      derive("openai", "gpt-6.1-terra", `${root}/v1`, { from: "gpt-6.1-sol", name: "GPT-6.1 Terra" }),
-    ].filter(Boolean),
+    models,
   });
 }
