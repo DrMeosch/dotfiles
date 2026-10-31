@@ -12,7 +12,7 @@
           "contextWindow": 272000
         },
         "gpt-6.1-sol": {
-          "contextWindow": 500000
+          "contextWindow": 272000
         }
       },
       "models": [
