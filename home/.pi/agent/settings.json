@@ -8,6 +8,8 @@
   "hideThinkingBlock": true,
   "quietStartup": true,
   "theme": "rose-pine-moon",
+  "defaultProvider": "litellm",
+  "defaultModel": "gpt-5.6-luna",
   "steeringMode": "all",
   "followUpMode": "all",
   "collapseChangelog": true,
