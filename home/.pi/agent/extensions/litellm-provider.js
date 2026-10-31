@@ -2,7 +2,7 @@
 // variables in `apiKey` and `headers` but not in `baseUrl`, so the provider is
 // registered here, from LITELLM_BASE_URL (the full .../v1 URL) and
 // LITELLM_API_KEY. Without LITELLM_BASE_URL the provider is not registered.
-const CLAUDE = { contextWindow: 200000, maxTokens: 32000 };
+const CLAUDE = { contextWindow: 1000000, maxTokens: 128000 };
 const GPT = { contextWindow: 272000, maxTokens: 128000 };
 
 const MODELS = [
