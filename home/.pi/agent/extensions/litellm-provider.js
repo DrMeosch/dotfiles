@@ -24,7 +24,7 @@ export default function (pi) {
   const derive = (provider, id, baseUrl, { from = id, name } = {}) => {
     const model = getBuiltinModel(provider, from);
     if (!model) {
-      missing.push(`${provider}/${from}`);
+      missing.push(id === from ? `${provider}/${from}` : `${id} (from ${provider}/${from})`);
       return undefined;
     }
     return { ...model, id, name: name ?? model.name, provider: "litellm", baseUrl };
@@ -40,7 +40,12 @@ export default function (pi) {
   // A model missing from Pi's catalog is skipped, which can also change which
   // litellm model Pi picks by default (settings.json asks for gpt-5.6-luna).
   if (missing.length) {
-    console.warn(`litellm provider: not in Pi's built-in catalog, skipped: ${missing.join(", ")}`);
+    const warning = `litellm provider: not in Pi's built-in catalog, skipped: ${missing.join(", ")}`;
+    console.warn(warning);
+    // The TUI clears the screen after loading, so also show it inside the session.
+    pi.on("session_start", (_event, ctx) => {
+      if (ctx.hasUI) ctx.ui.notify(warning, "warning");
+    });
   }
 
   pi.registerProvider("litellm", {
