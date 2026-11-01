@@ -94,6 +94,15 @@ else
 fi
 tmux -L smoke-nav kill-server 2>/dev/null || true
 
+# Pi warns unless tmux passes modified keys through (extended-keys on) in the CSI-u encoding.
+ext="$(tmux -L smoke-ext -f ~/.tmux.conf start-server \; source-file ~/.tmux.conf \; show -gv extended-keys \; show -gv extended-keys-format \; kill-server 2>&1)" || true
+if [ "$(tr '\n' ' ' <<<"$ext")" = "on csi-u " ]; then
+  ok "tmux passes modified keys through (extended-keys on, format csi-u)"
+else
+  bad "tmux extended-keys is not on with the csi-u format (Pi warns):"; echo "$ext"
+fi
+tmux -L smoke-ext kill-server 2>/dev/null || true
+
 # -- nvim starts and quits ----------------------------------------------------
 if nvim --headless +qa; then ok "nvim --headless +qa exits 0"; else bad "nvim --headless +qa exited $?"; fi
 
