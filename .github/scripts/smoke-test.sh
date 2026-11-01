@@ -95,7 +95,7 @@ fi
 tmux -L smoke-nav kill-server 2>/dev/null || true
 
 # Pi warns unless tmux passes modified keys through (extended-keys on) in the CSI-u encoding.
-ext="$(tmux -L smoke-ext -f ~/.tmux.conf start-server \; source-file ~/.tmux.conf \; show -gv extended-keys \; show -gv extended-keys-format \; kill-server 2>&1)" || true
+ext="$(tmux -L smoke-ext -f ~/.tmux.conf start-server \; source-file ~/.tmux.conf \; show -gv extended-keys \; show -gv extended-keys-format \; kill-server 2>/dev/null)" || true
 if [ "$(tr '\n' ' ' <<<"$ext")" = "on csi-u " ]; then
   ok "tmux passes modified keys through (extended-keys on, format csi-u)"
 else
