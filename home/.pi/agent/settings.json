@@ -13,8 +13,9 @@
   "steeringMode": "all",
   "followUpMode": "all",
   "collapseChangelog": true,
+  "tuiMode": "regular",
   "packages": [
-    "npm:pi-web-access@0.14.0",
+    "npm:pi-web-access@0.46.0",
     "npm:@ryan_nookpi/pi-extension-codex-fast-mode@0.2.6"
   ]
 }

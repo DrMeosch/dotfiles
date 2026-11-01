@@ -14,11 +14,11 @@ home-manager**, which manages your `$HOME` on any distro without needing NixOS.
 A `home-manager switch` builds:
 
 - **Shell**: zsh with autosuggestions, syntax highlighting, fzf keybindings, and a [starship](https://starship.rs/) prompt (no oh-my-zsh, no powerlevel10k)
-- **Multiplexer**: tmux (prefix `C-a`, vi keys) with plugins managed by [tpm](https://github.com/tmux-plugins/tpm), which the config clones and installs on first start (needs `git`) The vim-tmux-navigator plugin is not used, because its root `C-h`/`C-j`/`C-k`/`C-l`/`C-\` bindings stopped those keys reaching the program in a pane. After updating, a running tmux keeps the old bindings until you reload the config (`tmux source-file ~/.tmux.conf`, the config unbinds them) or restart tmux once.
+- **Multiplexer**: tmux (prefix `C-a`, vi keys) with plugins managed by [tpm](https://github.com/tmux-plugins/tpm), which the config clones and installs on first start (needs `git`). It passes modified keys (Shift+Enter, Ctrl+Enter, ...) through to the program in a pane (`extended-keys on`, in the `csi-u` format that Pi expects). The vim-tmux-navigator plugin is not used, because its root `C-h`/`C-j`/`C-k`/`C-l`/`C-\` bindings stopped those keys reaching the program in a pane. After updating, a running tmux keeps the old bindings until you reload the config (`tmux source-file ~/.tmux.conf`, the config unbinds them) or restart tmux once.
 - **Editor**: [LazyVim](https://www.lazyvim.org/)-based Neovim config (lazy.nvim, neogit, vimwiki, rendered Markdown, devcontainer LSP, neovide settings)
 - **Terminal**: Alacritty with a few hand-converted color themes plus the whole [alacritty-theme](https://github.com/alacritty/alacritty-theme) collection (rose-pine moon by default) - desktop targets only; the Alacritty program itself comes from the distro (`pacman -S alacritty` / `apt install alacritty`)
 - **CLI tools**: ripgrep, fd, fzf, jq, lazygit, git, rustup, tree-sitter, node, marksman
-- **Agent configs**: one shared `AGENTS.md` for Claude / Codex / opencode, plus Claude and Pi settings
+- **Agent configs**: one shared `AGENTS.md` for Claude / Codex / opencode, plus Claude and Pi settings (Pi runs in its regular TUI mode, so tmux keeps the scrollback and copy mode)
 - **Font**: [Geist Mono Nerd Font](https://github.com/ryanoasis/nerd-fonts) (family `GeistMono Nerd Font`; Nix on the desktop targets, `windows/setup.ps1` for Windows Terminal on WSL2)
 - **Windows host** (WSL2 machines): the flake also renders the Windows-side files - a WinGet configuration (win32yank), a Windows Terminal color scheme and profile, and a `.wslconfig` - which `windows/setup.ps1` applies; see [WSL2 on Windows 11](#wsl2-on-windows-11-the-windows-host-too)
 
@@ -264,7 +264,7 @@ and the `wsl` alias) and builds `packages.windows` (the Windows-side files), wit
 `.github/workflows/ci.yml` runs the real `make` on every push to `master` and every pull request: a first
 `make` that must take the bootstrap path, then a second `make` that must take the rebuild path, then
 `.github/scripts/smoke-test.sh` (tools on `PATH` from the Nix profile, linked files resolve into the repo,
-tmux loads `~/.tmux.conf` without errors, `nvim --headless +qa` exits 0, a `.md` file outside `~/vimwiki` opens as `markdown` and one inside it as `vimwiki`; on the desktop targets also that `fc-list` / `fc-match` find `GeistMono Nerd Font`). The Ubuntu job also runs
+tmux loads `~/.tmux.conf` without errors and has `extended-keys` on with the `csi-u` format, `nvim --headless +qa` exits 0, a `.md` file outside `~/vimwiki` opens as `markdown` and one inside it as `vimwiki`; on the desktop targets also that `fc-list` / `fc-match` find `GeistMono Nerd Font`). The Ubuntu job also runs
 `make help` and `make check`, plus `.github/scripts/test-detect-target.sh`, which checks the four-way
 target detection (including WSL2 Arch and Arch/Ubuntu derivatives) against fixture files, and
 `.github/scripts/test-make-update.sh`, which drives `make update` against a throwaway origin,
