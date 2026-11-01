@@ -63,6 +63,12 @@ jobs:
           if out="$(sudo ./bootstrap.sh 2>&1)"; then echo "root was accepted"; exit 1; fi
           echo "$out" | grep -q 'Running as root'
           sudo test ! -e /root/.dotfiles
+          # make update must refuse before it pulls into the checkout as root.
+          head="$(git rev-parse HEAD)"
+          if out="$(sudo make update 2>&1)"; then echo "root was accepted by make update"; exit 1; fi
+          echo "$out" | grep -q 'Running as root'
+          test "$(git rev-parse HEAD)" = "$head"
+          test -z "$(find .git -user root)"
 
       - name: First run (bootstrap path)
         run: |

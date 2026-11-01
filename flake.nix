@@ -18,10 +18,10 @@
 
   outputs = { self, nixpkgs, home-manager, ... }@inputs:
     let
-      # The account being configured is whoever runs the build: make, rebuild.sh and
-      # bootstrap.sh export DOTFILES_USER / DOTFILES_HOME and pass --impure, because
-      # builtins.getEnv sees nothing in pure evaluation (nix flake check, CI), where
-      # the placeholder is used instead.
+      # The account being configured is whoever runs the build: rebuild.sh and
+      # bootstrap.sh (which make runs) export DOTFILES_USER / DOTFILES_HOME and pass
+      # --impure, because builtins.getEnv sees nothing in pure evaluation (nix flake
+      # check, CI), where the placeholder is used instead.
       envOr = name: default:
         let v = builtins.getEnv name; in if v == "" then default else v;
       user = envOr "DOTFILES_USER" "user";

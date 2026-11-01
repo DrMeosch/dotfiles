@@ -16,11 +16,18 @@
 # Variables:
 #   TARGET=<name>   arch, ubuntu, wsl-arch or wsl-ubuntu (default: detected)
 #
-# The account configured is the one running make (not root); nothing to set.
+# The account configured is the one running make; nothing to set. make and make update
+# refuse root before they touch anything.
 
 ROOT := $(shell cd "$(dir $(abspath $(lastword $(MAKEFILE_LIST))))" && pwd -P)
 DETECT := $(ROOT)/scripts/detect-target.sh
 NIX_DAEMON_SH := /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
+
+# apply and update run first: they pull into the checkout or configure an account, and root
+# would leave root-owned files in a regular user's checkout (the scripts refuse root too).
+REFUSE_ROOT = if [ "$$(id -u)" -eq 0 ]; then \
+	echo "Running as root. Run this as the regular user whose home directory should be configured." >&2; exit 1; \
+fi
 
 # A fresh Nix install (or a non-login shell) leaves nix off PATH. Put it there
 # for the recipe's own shell, so one `make` works right after installing Nix and
@@ -40,7 +47,8 @@ help: ## Show this list
 	@echo "  TARGET=...  override the detected target (arch, ubuntu, wsl-arch, wsl-ubuntu)"
 
 apply: ## Set up this machine: first run bootstraps, later runs rebuild (default)
-	@$(NIX_ENV); \
+	@$(REFUSE_ROOT); \
+	$(NIX_ENV); \
 	target=$$("$(DETECT)" $(TARGET)) || exit 1; \
 	reason=; \
 	if ! command -v nix >/dev/null 2>&1; then \
@@ -60,7 +68,8 @@ apply: ## Set up this machine: first run bootstraps, later runs rebuild (default
 	fi
 
 update: ## Pull the latest repo state (fast-forward only), then apply
-	@cd "$(ROOT)" || exit 1; \
+	@$(REFUSE_ROOT); \
+	cd "$(ROOT)" || exit 1; \
 	if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then \
 		echo "make update: $(ROOT) is not a git checkout." >&2; exit 1; \
 	fi; \

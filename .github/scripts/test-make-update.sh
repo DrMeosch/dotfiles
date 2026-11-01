@@ -12,6 +12,10 @@ mkdir -p "$HOME" "$TMP/bin"
 printf '#!/bin/sh\necho "$@" "DOTFILES_USER=$DOTFILES_USER DOTFILES_HOME=$DOTFILES_HOME USER=$USER" >> "%s/hm.log"\n' "$TMP" > "$TMP/bin/home-manager"
 printf '#!/bin/sh\nexit 0\n' > "$TMP/bin/nix"
 chmod +x "$TMP/bin/home-manager" "$TMP/bin/nix"
+# `id` reports uid 0 while FAKE_ROOT is set, to exercise the root guards without being root.
+REAL_ID="$(command -v id)"
+printf '#!/bin/sh\n[ -n "${FAKE_ROOT:-}" ] && [ "${1:-}" = "-u" ] && { echo 0; exit 0; }\nexec "%s" "$@"\n' "$REAL_ID" > "$TMP/bin/id"
+chmod +x "$TMP/bin/id"
 export PATH="$TMP/bin:$PATH"
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 
@@ -102,5 +106,16 @@ if (cd "$TMP/c5" && make update TARGET=arch >"$TMP/c5.log" 2>&1); then ok "updat
 fresh c6
 if (cd "$TMP/c6" && env -u USER make TARGET=arch >"$TMP/c6.log" 2>&1); then ok "make works without USER in the environment"; else bad "make failed without USER"; cat "$TMP/c6.log"; fi
 grep -q "DOTFILES_USER=$me DOTFILES_HOME=$HOME USER=$me" "$TMP/hm.log" && ok "rebuild still got the running account" || bad "rebuild got the wrong account without USER"
+
+# 7. root is refused by make and make update before git or the config is touched
+fresh c7
+upstream "\$a # pulled-late-root" "append"
+head_before="$(git -C "$TMP/c7" rev-parse HEAD)"
+for goal in update apply; do
+  if (cd "$TMP/c7" && FAKE_ROOT=1 make $goal TARGET=arch >"$TMP/c7.log" 2>&1); then bad "make $goal accepted root"; else ok "make $goal refused as root"; fi
+  grep -q 'Running as root' "$TMP/c7.log" && ok "make $goal says why" || bad "make $goal gave no reason"
+  [ "$(git -C "$TMP/c7" rev-parse HEAD)" = "$head_before" ] && ok "make $goal pulled nothing as root" || bad "make $goal moved HEAD as root"
+  [ ! -s "$TMP/hm.log" ] && ok "make $goal applied nothing as root" || bad "make $goal ran the rebuild as root"
+done
 
 exit "$fail"

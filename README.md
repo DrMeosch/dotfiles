@@ -86,7 +86,7 @@ whether the machine has been set up before, and says on screen which path it too
 - **First run** (no `nix`, home-manager not yet active for your user, or `~/.dotfiles` not pointing at this repo): runs `bootstrap.sh`.
 - **Every later run**: runs `rebuild.sh`.
 
-Either way it configures the account that runs it, with its home directory, and refuses to run as root. There is
+Either way it configures the account that runs it, with its home directory, and refuses to run as root (`make` and `make update` check that before they pull or touch anything). There is
 no username to edit: `bootstrap.sh` and `rebuild.sh` pass the account (`id -un`) and `$HOME` to the flake through the environment
 and build with `--impure`, so the checkout stays unmodified.
 
