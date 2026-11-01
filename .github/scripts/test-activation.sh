@@ -49,20 +49,18 @@ snapshot >"$work/before"
 
 # -- the activation package: the ubuntu configuration, rooted at the throwaway $HOME
 # (home.homeDirectory is where every out-of-store link is resolved from, so it has to
-# point at the throwaway home too, and activation insists on the configured user being
-# the one running it; the GPU driver setup is a system service that has
-# nothing to do with the links under test, so it is left out). Hand `path:` the
-# checkout copy, so the build sees exactly the files above whether or not they are
-# committed.
-pkg="$(nix build --no-link --print-out-paths --no-write-lock-file --impure \
+# point at the throwaway home too: the flake reads the account and home from
+# DOTFILES_USER / DOTFILES_HOME, as rebuild.sh sets them; the GPU driver setup is a
+# system service that has nothing to do with the links under test, so it is left out).
+# Hand `path:` the checkout copy, so the build sees exactly the files above whether or
+# not they are committed.
+pkg="$(DOTFILES_USER="$(id -un)" DOTFILES_HOME="$home" nix build --no-link --print-out-paths --no-write-lock-file --impure \
   --extra-experimental-features 'nix-command flakes' --expr "
     let
       flake = builtins.getFlake \"path:$checkout\";
       lib = flake.inputs.nixpkgs.lib;
       cfg = flake.homeConfigurations.ubuntu.extendModules {
         modules = [ {
-          home.username = lib.mkForce \"$(id -un)\";
-          home.homeDirectory = lib.mkForce \"$home\";
           targets.genericLinux.gpu.enable = lib.mkForce false;
         } ];
       };

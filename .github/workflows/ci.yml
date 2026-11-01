@@ -58,10 +58,16 @@ jobs:
       - name: Make help
         run: make help
 
+      - name: Root is refused before anything is installed or linked
+        run: |
+          if out="$(sudo ./bootstrap.sh 2>&1)"; then echo "root was accepted"; exit 1; fi
+          echo "$out" | grep -q 'Running as root'
+          sudo test ! -e /root/.dotfiles
+
       - name: First run (bootstrap path)
         run: |
           set -o pipefail
-          make YES=1 2>&1 | tee "$RUNNER_TEMP/first.log"
+          make 2>&1 | tee "$RUNNER_TEMP/first.log"
           grep -q 'first run' "$RUNNER_TEMP/first.log"
           grep -q 'target ubuntu' "$RUNNER_TEMP/first.log"
 
@@ -70,6 +76,10 @@ jobs:
           set -o pipefail
           make 2>&1 | tee "$RUNNER_TEMP/second.log"
           grep -q 'existing setup found' "$RUNNER_TEMP/second.log"
+
+      # The account comes from the environment, so applying must not edit a tracked file.
+      - name: Checkout has no tracked changes
+        run: test -z "$(git status --porcelain --untracked-files=no)"
 
       - name: Make check
         run: make check
@@ -106,7 +116,7 @@ jobs:
 
       - uses: actions/checkout@v7.0.1
 
-      # Bootstrap needs a regular user (the home directory is /home/<user>).
+      # make configures the account that runs it and refuses root, so create a regular user.
       - name: Create a regular user
         run: |
           useradd --create-home --shell /bin/bash builder
@@ -126,7 +136,7 @@ jobs:
       - name: First run (bootstrap path)
         run: |
           set -o pipefail
-          sudo -iu builder env NIX_CONFIG="$NIX_CONFIG" make -C "$GITHUB_WORKSPACE" YES=1 2>&1 | tee /tmp/first.log
+          sudo -iu builder env NIX_CONFIG="$NIX_CONFIG" make -C "$GITHUB_WORKSPACE" 2>&1 | tee /tmp/first.log
           grep -q 'first run' /tmp/first.log
           grep -q 'target arch' /tmp/first.log
 
@@ -135,6 +145,9 @@ jobs:
           set -o pipefail
           sudo -iu builder env NIX_CONFIG="$NIX_CONFIG" make -C "$GITHUB_WORKSPACE" 2>&1 | tee /tmp/second.log
           grep -q 'existing setup found' /tmp/second.log
+
+      - name: Checkout has no tracked changes
+        run: test -z "$(sudo -iu builder git -C "$GITHUB_WORKSPACE" status --porcelain --untracked-files=no)"
 
       - name: Smoke test
         run: sudo -iu builder env EXPECT_FONT=1 "$GITHUB_WORKSPACE/.github/scripts/smoke-test.sh"
@@ -160,8 +173,8 @@ jobs:
           wsl-version: 2
           additional-packages: curl git ca-certificates sudo make
 
-      # Bootstrap needs a regular user (the home directory is /home/<user>). Make
-      # it the distro's default user, as on a real install, and restart the
+      # make configures the account that runs it and refuses root, so create a
+      # regular user. Make it the distro's default user, as on a real install, and restart the
       # distro so the following steps run as that user.
       - name: Create a regular user
         run: |
@@ -189,7 +202,7 @@ jobs:
       - name: First run (bootstrap path)
         run: |
           set -o pipefail
-          make -C ~/dotfiles YES=1 2>&1 | tee /tmp/first.log
+          make -C ~/dotfiles 2>&1 | tee /tmp/first.log
           grep -q 'first run' /tmp/first.log
           grep -q 'target wsl-ubuntu' /tmp/first.log
 
@@ -198,6 +211,9 @@ jobs:
           set -o pipefail
           make -C ~/dotfiles 2>&1 | tee /tmp/second.log
           grep -q 'existing setup found' /tmp/second.log
+
+      - name: Checkout has no tracked changes
+        run: test -z "$(git -C ~/dotfiles status --porcelain --untracked-files=no)"
 
       - name: Smoke test
         run: ~/dotfiles/.github/scripts/smoke-test.sh

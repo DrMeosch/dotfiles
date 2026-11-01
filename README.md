@@ -28,7 +28,7 @@ A `home-manager switch` builds:
 
 ```
 Makefile             # the entry point: `make` (apply), `make update`, `make check`, `make windows`
-flake.nix            # homeConfigurations: arch / ubuntu / wsl-arch / wsl-ubuntu, packages.windows (+ the one `user` line)
+flake.nix            # homeConfigurations: arch / ubuntu / wsl-arch / wsl-ubuntu, packages.windows
 flake.lock           # pinned nixpkgs and home-manager revisions (bump with `nix flake update`)
 bootstrap.sh         # first run (called by make): install Nix, link ~/.dotfiles, first switch
 rebuild.sh           # later runs (called by make): home-manager switch
@@ -86,6 +86,10 @@ whether the machine has been set up before, and says on screen which path it too
 - **First run** (no `nix`, home-manager not yet active for your user, or `~/.dotfiles` not pointing at this repo): runs `bootstrap.sh`.
 - **Every later run**: runs `rebuild.sh`.
 
+Either way it configures the account that runs it, with its home directory, and refuses to run as root. There is
+no username to edit: `bootstrap.sh` and `rebuild.sh` pass the account (`id -un`) and `$HOME` to the flake through the environment
+and build with `--impure`, so the checkout stays unmodified.
+
 The four targets are told apart in one place, `scripts/detect-target.sh`: WSL2 from `/proc/version`, the distro
 from `ID` in `/etc/os-release`, falling back to the words of `ID_LIKE` so derivatives (EndeavourOS, Manjaro,
 Pop!_OS, Linux Mint, ...) count as their parent. Anything else (another distro, macOS) stops with an error.
@@ -112,8 +116,7 @@ cd ~/dotfiles
 make
 ```
 
-The target is detected as `arch` (desktop: the Alacritty config and themes and the Geist Mono Nerd Font included; install Alacritty itself from the distro, `sudo pacman -S alacritty`). It asks before
-touching `flake.nix` (see below); `make YES=1` skips the question.
+The target is detected as `arch` (desktop: the Alacritty config and themes and the Geist Mono Nerd Font included; install Alacritty itself from the distro, `sudo pacman -S alacritty`).
 
 ### WSL2 on Windows 11 (the Windows host too)
 
@@ -166,8 +169,7 @@ Through `bootstrap.sh`, in order:
 
 1. Installs Determinate Nix if `nix` isn't present (flakes enabled). Nix is made available inside that same `make` call, so one command is enough even though your current shell does not have `nix` on `PATH` yet.
 2. Symlinks this repo to `~/.dotfiles` (the config resolves edit-in-place paths through it).
-3. Checks the `user` in `flake.nix` against your login name and offers to fix it (`make YES=1` accepts without asking, for unattended runs).
-4. Runs the first `home-manager switch` for the detected target (existing files are backed up as `*.bak`).
+3. Runs the first `home-manager switch` for the detected target (existing files are backed up as `*.bak`).
 
 When it finishes, **open a new shell** (or `exec zsh`) so Nix and the new environment are on `PATH`.
 
@@ -191,8 +193,16 @@ make help           # list the commands
 ```
 
 `make update` refuses to pull, and says why, when you have local changes to tracked files or your
-history has diverged from the remote. The one local change it tolerates is the `user = ` line in
-`flake.nix` that the first run may have rewritten; that edit is kept across the pull.
+history has diverged from the remote.
+
+**One-time step for a checkout set up before the account came from the environment.** The first run
+used to rewrite the `user = ` line in `flake.nix`, so such a checkout shows `M flake.nix` and `make update`
+refuses it. Drop that edit once (the account no longer comes from the file), then update:
+
+```sh
+git -C ~/.dotfiles checkout flake.nix
+make update
+```
 
 **One-time step for a machine set up before `flake.lock` was committed.** Nix stages the lock it wrote
 there (`git add -N`), and the old `make update` refuses to pull over it. Once, run:
@@ -204,7 +214,7 @@ mv flake.lock flake.lock.pre-pin  # or delete it
 make update
 ```
 
-`make TARGET=...` and `make YES=1` work with every command.
+`make TARGET=...` works with every command.
 
 ### Upgrading from the single-symlink Alacritty layout
 
@@ -246,7 +256,7 @@ machine that runs `nix flake update` commits it. A locally changed `flake.lock` 
 `make` is a thin layer; the logic stays in the scripts, which you can still run yourself:
 
 ```sh
-./bootstrap.sh [--yes] [target]   # first run: Nix, ~/.dotfiles link, username, first switch
+./bootstrap.sh [target]           # first run: Nix, ~/.dotfiles link, first switch
 ./rebuild.sh [target]             # home-manager switch for the detected (or given) target
 ```
 
@@ -262,12 +272,12 @@ and the `wsl` alias) and builds `packages.windows` (the Windows-side files), wit
 ### CI
 
 `.github/workflows/ci.yml` runs the real `make` on every push to `master` and every pull request: a first
-`make` that must take the bootstrap path, then a second `make` that must take the rebuild path, then
+`make` that must take the bootstrap path, then a second `make` that must take the rebuild path, then a check that the checkout has no tracked changes (the account comes from the environment, so nothing is rewritten; the Ubuntu job also checks that `bootstrap.sh` refuses root), then
 `.github/scripts/smoke-test.sh` (tools on `PATH` from the Nix profile, linked files resolve into the repo,
 tmux loads `~/.tmux.conf` without errors and has `extended-keys` on with the `csi-u` format, `nvim --headless +qa` exits 0, a `.md` file outside `~/vimwiki` opens as `markdown` and one inside it as `vimwiki`; on the desktop targets also that `fc-list` / `fc-match` find `GeistMono Nerd Font`). The Ubuntu job also runs
 `make help` and `make check`, plus `.github/scripts/test-detect-target.sh`, which checks the four-way
 target detection (including WSL2 Arch and Arch/Ubuntu derivatives) against fixture files, and
-`.github/scripts/test-make-update.sh`, which drives `make update` against a throwaway origin,
+`.github/scripts/test-make-update.sh`, which drives `make update` against a throwaway origin (clean tree pulls and rebuilds for the running account, with or without `USER` in the environment; a tracked edit or diverged history is refused),
 `.github/scripts/test-activation.sh`, which activates the real configuration in a throwaway home and checks the upgrade from the old single-symlink Alacritty layout (real directory, working links, repo checkout untouched) and the dwm checkout (cloned when missing, left alone when present, only a warning without network),
 `.github/scripts/test-theme-switch.sh`, which runs `atc` (including its edit of btop's `color_theme` line) and Neovim's colorscheme choice against a throwaway home with the state file present and absent, and a check that fails if `flake.lock` no longer matches `flake.nix` (a changed input needs a committed lock bump). Jobs: `ubuntu` (ubuntu-latest), `arch`
 (archlinux container), `wsl` (Ubuntu 24.04 on real WSL2 on windows-latest, target `wsl-ubuntu`; it also runs `make windows` and checks the
@@ -298,7 +308,7 @@ checks out or runs pull request code and only has `issues: write` and `pull-requ
 
 ## Make it yours
 
-- **Username**: `make` offers to set it on the first run, or change the single `user = "ag"` line in `flake.nix`. Everything (home directory, symlink paths) threads from it.
+- **Username**: nothing to set. The account that runs `make` is configured, with its `$HOME` (both read by the flake from `DOTFILES_USER` / `DOTFILES_HOME`, which `bootstrap.sh` and `rebuild.sh` export together with `--impure`). To configure another account, run `make` as that account (`sudo -iu <name> make -C <checkout>`); root is refused. A checkout owned by another account needs `git config --global --add safe.directory <path>` for the second account, or Nix refuses to read it. Pure evaluation (`nix flake check`, `make check`, CI) sees a placeholder user instead, and a hand-run `home-manager switch` without `--impure` and the two variables stops at activation with `USER is "...", expected "user"`; use `make` or `./rebuild.sh`.
 - **CPU architecture**: `system` in `flake.nix` (`x86_64-linux` by default; `aarch64-linux` for ARM).
 - **Terminal theme**: `alacritty.toml` imports `~/.config/alacritty/current-theme.toml`, a copy of one file from `~/.config/alacritty/themes/`: ours from `home/.config/alacritty/themes/` (gruvbox, night-owl, pink-moon, seoul256, ayu-light, firewatch, ...) or any of the upstream themes (`catppuccin_mocha.toml`, `tokyo_night.toml`, ...). The upstream collection is the `alacritty-theme` flake input, pinned in `flake.lock` and linked read-only from the Nix store; `nix flake update alacritty-theme` moves the pin. Where both have a file of the same name (`dracula`, `nord`, `seoul256-light`) ours wins. A new theme file added to the repo gets its link on the next rebuild. `current-theme.toml` is untracked state: a rebuild creates it from rose-pine moon when it is missing and never touches it again, so to try a theme by hand just `cp ~/.config/alacritty/themes/<theme>.toml ~/.config/alacritty/current-theme.toml`. If the file is deleted, Alacritty only logs the missing import and starts with its built-in colors until the next rebuild or `atc`.
 - **Dark / light switch**: `atc [dark|light|toggle]` (linked into `~/.local/bin`, which a rebuild adds to `PATH`) switches everything at once: it copies `dracula_plus` (dark) or `github_light_colorblind` (light) over `current-theme.toml` and touches `alacritty.toml` so Alacritty reloads, copies `~/.tmux/{dark,light}.conf` over `current-theme.conf` and reloads a running tmux, sets `color_theme` in `~/.config/btop/btop.conf` to `DWM-Pink-Dark` or `DWM-Pink-Light` (our themes in `home/.config/btop/themes/`, linked into `~/.config/btop/themes/`; only that one line is rewritten, in place, and a missing `btop.conf` is skipped because btop writes its own on first run), switches every running Neovim instance, and records the choice in `~/.config/atc-theme`. Neovim reads that file when it starts (dark when it is missing or unreadable), so a switch never edits a tracked file. `btop.conf` is btop's own writable file and is deliberately not managed by the dotfiles. A running btop 1.3.1 or newer reloads its config on `SIGUSR2`, which `atc` sends only to btop processes of that version (an older btop would be terminated by it, so those, and any btop whose version cannot be read, pick the theme up on their next start). `dwm-dark.sh` and `dwm-light.sh` come from the dwm checkout (below) and call `atc`, set the GTK/xfconf theme and reload dwm's colors.

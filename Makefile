@@ -6,7 +6,8 @@
 #   make                  first run on a machine: bootstrap.sh
 #                         every later run:        rebuild.sh
 #   make update           git pull --ff-only, then make apply
-#                         (keeps a locally modified or deleted flake.lock as a copy and restores the committed one first)
+#                         (refuses while tracked files have local changes, except a modified or
+#                         deleted flake.lock, which is kept as a copy and restored to the committed one first)
 #   make check            evaluate all homeConfigurations and build the Windows files,
 #                         apply nothing
 #   make windows          WSL2 only: render the Windows-side files and copy them to
@@ -14,7 +15,8 @@
 #
 # Variables:
 #   TARGET=<name>   arch, ubuntu, wsl-arch or wsl-ubuntu (default: detected)
-#   YES=1           don't prompt before rewriting the user line in flake.nix
+#
+# The account configured is the one running make (not root); nothing to set.
 
 ROOT := $(shell cd "$(dir $(abspath $(lastword $(MAKEFILE_LIST))))" && pwd -P)
 DETECT := $(ROOT)/scripts/detect-target.sh
@@ -30,13 +32,12 @@ NIX_ENV = if [ -e $(NIX_DAEMON_SH) ]; then . $(NIX_DAEMON_SH); fi; \
 .PHONY: help apply update check windows
 
 help: ## Show this list
-	@echo "Usage: make [target] [TARGET=<arch|ubuntu|wsl-arch|wsl-ubuntu>] [YES=1]"
+	@echo "Usage: make [target] [TARGET=<arch|ubuntu|wsl-arch|wsl-ubuntu>]"
 	@echo
 	@grep -hE '^[a-z]+:.*## ' $(MAKEFILE_LIST) | \
 		awk 'BEGIN { FS = ":.*## " } { printf "  make %-8s %s\n", $$1, $$2 }'
 	@echo
 	@echo "  TARGET=...  override the detected target (arch, ubuntu, wsl-arch, wsl-ubuntu)"
-	@echo "  YES=1       rewrite flake.nix's user line without asking (unattended runs)"
 
 apply: ## Set up this machine: first run bootstraps, later runs rebuild (default)
 	@$(NIX_ENV); \
@@ -51,7 +52,7 @@ apply: ## Set up this machine: first run bootstraps, later runs rebuild (default
 	fi; \
 	if [ -n "$$reason" ]; then \
 		echo "==> make: first run ($$reason), target $$target: running bootstrap.sh"; \
-		"$(ROOT)/bootstrap.sh" $(if $(filter 1,$(YES)),--yes) "$$target" || exit 1; \
+		"$(ROOT)/bootstrap.sh" "$$target" || exit 1; \
 		echo "==> make: first run complete. Open a new shell (or: exec zsh) so Nix and the new environment are on PATH."; \
 	else \
 		echo "==> make: existing setup found, target $$target: running rebuild.sh"; \
@@ -63,36 +64,23 @@ update: ## Pull the latest repo state (fast-forward only), then apply
 	if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then \
 		echo "make update: $(ROOT) is not a git checkout." >&2; exit 1; \
 	fi; \
-	saved=; \
 	if [ -n "$$(git status --porcelain --untracked-files=no -- flake.lock)" ]; then \
 		lockcopy=flake.lock.local-$$(date +%Y%m%d-%H%M%S); \
 		echo "==> make update: flake.lock differs from the committed one; keeping your copy as $$lockcopy and restoring the committed lock for the pull"; \
 		{ [ ! -e flake.lock ] || cp flake.lock "$$lockcopy"; } && git checkout HEAD -- flake.lock || exit 1; \
 	fi; \
 	if [ -n "$$(git status --porcelain --untracked-files=no)" ]; then \
-		if [ -z "$$(git status --porcelain --untracked-files=no | grep -v ' flake.nix$$')" ] && \
-		   [ -z "$$(git diff -U0 -- flake.nix | grep -E '^[+-][^+-]' | grep -vE '^[+-][[:space:]]*user = ')" ]; then \
-			saved=$$(sed -nE 's/^[[:space:]]*user = "([^"]+)";.*/\1/p' flake.nix | head -n1); \
-			echo "==> make update: setting the local user line aside for the pull (\"$$saved\")"; \
-			git checkout -- flake.nix; \
-		else \
-			echo "make update: refusing to pull, there are local changes to tracked files:" >&2; \
-			git status --short --untracked-files=no >&2; \
-			echo "Commit or stash them (git stash), then run make update again." >&2; \
-			exit 1; \
-		fi; \
+		echo "make update: refusing to pull, there are local changes to tracked files:" >&2; \
+		git status --short --untracked-files=no >&2; \
+		echo "Commit or stash them (git stash), then run make update again." >&2; \
+		exit 1; \
 	fi; \
-	restore() { \
-		[ -z "$$saved" ] || sed -i -E "s/^([[:space:]]*user = \")[^\"]+(\";.*)/\1$$saved\2/" flake.nix; \
-	}; \
 	echo "==> make update: git pull --ff-only"; \
 	git pull --ff-only || { \
-		restore; \
 		echo "make update: could not fast-forward (diverged history, detached HEAD, or no upstream)." >&2; \
 		echo "Resolve it with git (e.g. git pull --rebase), then run make again." >&2; \
 		exit 1; \
-	}; \
-	restore
+	}
 	@$(MAKE) --no-print-directory apply
 
 check: ## Evaluate every homeConfiguration and build the Windows files, apply nothing
