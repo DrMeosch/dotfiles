@@ -18,9 +18,14 @@
 
   outputs = { self, nixpkgs, home-manager, ... }@inputs:
     let
-      # The one username line to change if this isn't your machine.
-      # bootstrap.sh (via `make`) offers to rewrite this for you if your login name differs.
-      user = "ag";
+      # The account being configured is whoever runs the build: rebuild.sh and
+      # bootstrap.sh (which make runs) export DOTFILES_USER / DOTFILES_HOME and pass
+      # --impure, because builtins.getEnv sees nothing in pure evaluation (nix flake
+      # check, CI), where the placeholder is used instead.
+      envOr = name: default:
+        let v = builtins.getEnv name; in if v == "" then default else v;
+      user = envOr "DOTFILES_USER" "user";
+      homeDir = envOr "DOTFILES_HOME" "/home/${user}";
 
       # All targets (Arch and Ubuntu, native or under WSL2) are 64-bit Intel/AMD.
       # Change to "aarch64-linux" for an ARM machine.
@@ -34,7 +39,7 @@
       mkHome = modules:
         home-manager.lib.homeManagerConfiguration {
           inherit pkgs;
-          extraSpecialArgs = { inherit user inputs; };
+          extraSpecialArgs = { inherit user homeDir inputs; };
           modules = [ ./home/common.nix ] ++ modules;
         };
 
@@ -49,7 +54,8 @@
     {
       # Build one of these with `make` or ./rebuild.sh (both auto-detect the
       # target), or directly:
-      #   home-manager switch --flake ~/.dotfiles#<target>
+      #   DOTFILES_USER=$(id -un) DOTFILES_HOME=$HOME USER=$(id -un) \
+      #     home-manager switch --impure --flake ~/.dotfiles#<target>
       homeConfigurations = configs // {
         # Legacy name from when there was a single WSL2 target (it was Ubuntu).
         wsl = configs.wsl-ubuntu;

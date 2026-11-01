@@ -1,4 +1,4 @@
-{ config, lib, pkgs, user, ... }:
+{ config, lib, pkgs, user, homeDir, ... }:
 
 let
   # Config files live in the repo and are symlinked out of the Nix store so you
@@ -8,7 +8,7 @@ let
 in
 {
   home.username = user;
-  home.homeDirectory = "/home/${user}";
+  home.homeDirectory = homeDir;
   home.stateVersion = "24.11";
 
   # Required on non-NixOS distros (Arch, Ubuntu, WSL2): wires up session
