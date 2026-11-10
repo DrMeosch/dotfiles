@@ -38,41 +38,50 @@ local function warn_unset(names)
   end
 end
 
--- Ids served by an Anthropic-compatible gateway, as a CodeCompanion model choice map.
-local models_cache = { expires = 0 }
+-- Ids served by an Anthropic-compatible gateway in listing order, from the last successful listing.
+local models_cache = { ids = {}, expires = 0 }
+local function anthropic_model_ids()
+  local base = vim.env.CODECOMPANION_ANTHROPIC_BASE_URL or ""
+  if base == "" or os.time() < models_cache.expires then
+    return models_cache.ids
+  end
+
+  local key = vim.env.CODECOMPANION_ANTHROPIC_API_KEY or ""
+  local ok, response = pcall(require("plenary.curl").get, base .. "/v1/models", {
+    headers = {
+      ["x-api-key"] = key,
+      Authorization = "Bearer " .. key,
+      ["anthropic-version"] = "2023-06-01",
+    },
+    timeout = 3000,
+  })
+  if not (ok and response and response.status == 200) then
+    return models_cache.ids
+  end
+  local decoded, json = pcall(vim.json.decode, response.body)
+  if not (decoded and type(json) == "table" and type(json.data) == "table") then
+    return models_cache.ids
+  end
+
+  local ids = {}
+  for _, model in ipairs(json.data) do
+    if type(model) == "table" and type(model.id) == "string" then
+      table.insert(ids, model.id)
+    end
+  end
+  models_cache = { ids = ids, expires = os.time() + MODEL_CACHE_SECONDS }
+  return ids
+end
+
+-- The listed ids plus the configured model, as a CodeCompanion model choice map.
 local function anthropic_models()
   local choices = {}
-  local function add(id)
-    choices[id] = { formatted_name = id, opts = { has_vision = true } }
-  end
-
-  if os.time() < models_cache.expires then
-    return models_cache.models
-  end
-
-  local base = vim.env.CODECOMPANION_ANTHROPIC_BASE_URL or ""
-  local key = vim.env.CODECOMPANION_ANTHROPIC_API_KEY or ""
-  if base ~= "" then
-    local ok, response = pcall(require("plenary.curl").get, base .. "/v1/models", {
-      headers = { ["x-api-key"] = key, Authorization = "Bearer " .. key },
-      timeout = 3000,
-    })
-    local decoded, json
-    if ok and response and response.status == 200 then
-      decoded, json = pcall(vim.json.decode, response.body)
-    end
-    if decoded and type(json) == "table" then
-      for _, model in ipairs(json.data or {}) do
-        add(model.id)
-      end
+  local ids = vim.list_extend({ vim.env.CODECOMPANION_ANTHROPIC_MODEL or "" }, anthropic_model_ids())
+  for _, id in ipairs(ids) do
+    if id ~= "" then
+      choices[id] = { formatted_name = id, opts = { has_vision = true } }
     end
   end
-  local configured = vim.env.CODECOMPANION_ANTHROPIC_MODEL or ""
-  if configured ~= "" then
-    add(configured)
-  end
-
-  models_cache = { models = choices, expires = os.time() + MODEL_CACHE_SECONDS }
   return choices
 end
 
@@ -124,7 +133,7 @@ M.adapters = {
         schema = {
           model = {
             default = model ~= "" and model or function()
-              return next(anthropic_models())
+              return anthropic_model_ids()[1]
             end,
             choices = anthropic_models,
           },
@@ -176,7 +185,6 @@ function M.switch_backend()
 
   local chat = require("codecompanion").last_chat()
   if chat and chat.adapter.name ~= name and not chat:change_adapter(name) then
-    notify("Backend " .. name .. " is used for new chats only, this chat already ran tools", vim.log.levels.WARN)
     return
   end
   notify("Backend: " .. name)

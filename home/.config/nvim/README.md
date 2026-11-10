@@ -6,7 +6,7 @@ Refer to the [documentation](https://lazyvim.github.io/installation) to get star
 ## AI assistant
 
 [CodeCompanion](https://github.com/olimorris/codecompanion.nvim) (`lua/plugins/codecompanion.lua`,
-`lua/config/codecompanion.lua`) provides a chat buffer and inline editing. It needs Neovim 0.12 or
+`lua/config/codecompanion.lua`) provides a chat buffer and inline editing. It needs Neovim 0.11 or
 newer; run `:checkhealth codecompanion` to check the setup.
 
 Four backends are set up and `<leader>ab` cycles through them, for the open chat as well as for new
