@@ -12,6 +12,7 @@ M.backends = { "openai_env", "anthropic_env", "copilot", "claude_code" }
 
 local EFFORTS = { "low", "medium", "high", "max" }
 local MODEL_CACHE_SECONDS = 1800
+local MODEL_RETRY_SECONDS = 60
 
 -- Reasoning effort for the HTTP backends, nil sends nothing. Read on every request, so
 -- changing it applies to chats that are already open.
@@ -39,6 +40,7 @@ local function warn_unset(names)
 end
 
 -- Ids served by an Anthropic-compatible gateway in listing order, from the last successful listing.
+-- A failed listing is retried after MODEL_RETRY_SECONDS, a successful one after MODEL_CACHE_SECONDS.
 local models_cache = { ids = {}, expires = 0 }
 local function anthropic_model_ids()
   local base = vim.env.CODECOMPANION_ANTHROPIC_BASE_URL or ""
@@ -46,6 +48,7 @@ local function anthropic_model_ids()
     return models_cache.ids
   end
 
+  models_cache.expires = os.time() + MODEL_RETRY_SECONDS
   local key = vim.env.CODECOMPANION_ANTHROPIC_API_KEY or ""
   local ok, response = pcall(require("plenary.curl").get, base .. "/v1/models", {
     headers = {
