@@ -287,7 +287,7 @@ function M.pick_backend()
     end
   end
   if #items == 0 then
-    notify("No backend is configured, see the AI assistant section of the Neovim README", vim.log.levels.WARN)
+    notify("No backend configured, see the nvim README", vim.log.levels.WARN)
     return
   end
 
