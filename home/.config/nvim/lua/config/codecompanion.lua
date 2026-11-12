@@ -1,14 +1,76 @@
 -- CodeCompanion backends and the hotkeys that drive them (see plugins/codecompanion.lua).
 --
--- Four backends, cycled with switch_backend():
---   openai_env      any OpenAI-compatible chat completions endpoint
---   anthropic_env   the Anthropic Messages API, e.g. the /v1/messages route of a LiteLLM gateway
---   copilot         GitHub Copilot (Business included), signed in once with :Copilot auth
---   claude_code     the Claude Code CLI over ACP, which uses the local Claude subscription login
+-- CodeCompanion is off until a backend is picked with pick_backend(), nothing is loaded or
+-- contacted before that. Five backends exist, the picker lists the ones that are configured:
+--   claude_code       Claude through the Claude Code CLI over ACP, on the local Claude subscription login
+--   anthropic_litellm the Anthropic Messages API, e.g. the /v1/messages route of a LiteLLM gateway
+--   openai            OpenAI directly, with an API key
+--   openai_litellm    any OpenAI-compatible chat completions endpoint, e.g. a LiteLLM gateway
+--   copilot           GitHub Copilot (Business included), signed in once with :Copilot auth
 -- Hosts, keys and model names come only from the environment, see the README.
 local M = {}
 
-M.backends = { "openai_env", "anthropic_env", "copilot", "claude_code" }
+local function set(...)
+  for _, name in ipairs({ ... }) do
+    if (vim.env[name] or "") == "" then
+      return false
+    end
+  end
+  return true
+end
+
+-- The OAuth token that `:Copilot auth` leaves behind, searched where CodeCompanion looks for it.
+local function copilot_signed_in()
+  local root = vim.env.CODECOMPANION_TOKEN_PATH
+  if (root or "") == "" then
+    root = vim.fs.normalize(vim.env.XDG_CONFIG_HOME or "~/.config")
+  end
+  for _, file in ipairs({ "hosts.json", "apps.json" }) do
+    local ok, lines = pcall(vim.fn.readfile, vim.fs.joinpath(root, "github-copilot", file))
+    if ok and table.concat(lines, "\n"):find("oauth_token", 1, true) then
+      return true
+    end
+  end
+  return false
+end
+
+-- In picker order. `ready` says whether the backend is configured here, without touching the
+-- network or loading CodeCompanion. Only `http` backends serve inline edits and commands.
+M.backends = {
+  {
+    name = "claude_code",
+    label = "Anthropic - Claude subscription (Claude Code)",
+    type = "acp",
+    ready = function()
+      return vim.fn.executable("claude") == 1 and vim.fn.executable("claude-agent-acp") == 1
+    end,
+  },
+  {
+    name = "anthropic_litellm",
+    label = "Anthropic - LiteLLM and API key",
+    type = "http",
+    ready = function()
+      return set("CODECOMPANION_ANTHROPIC_BASE_URL", "CODECOMPANION_ANTHROPIC_API_KEY")
+    end,
+  },
+  {
+    name = "openai",
+    label = "OpenAI - API key",
+    type = "http",
+    ready = function()
+      return set("OPENAI_API_KEY")
+    end,
+  },
+  {
+    name = "openai_litellm",
+    label = "OpenAI - LiteLLM and API key",
+    type = "http",
+    ready = function()
+      return set("CODECOMPANION_BASE_URL", "CODECOMPANION_API_KEY")
+    end,
+  },
+  { name = "copilot", label = "GitHub Copilot", type = "http", ready = copilot_signed_in },
+}
 
 local EFFORTS = { "low", "medium", "high", "max" }
 local MODEL_CACHE_SECONDS = 1800
@@ -26,17 +88,6 @@ end
 
 local function notify(msg, level)
   vim.notify(msg, level or vim.log.levels.INFO, { title = "CodeCompanion" })
-end
-
--- Adapters are resolved many times per session, warn about a missing variable once.
-local warned = {}
-local function warn_unset(names)
-  for _, name in ipairs(names) do
-    if (vim.env[name] or "") == "" and not warned[name] then
-      warned[name] = true
-      notify(name .. " is not set, requests will fail", vim.log.levels.WARN)
-    end
-  end
 end
 
 -- Ids served by an Anthropic-compatible gateway in listing order, from the last successful listing.
@@ -57,6 +108,8 @@ local function anthropic_model_ids()
       ["anthropic-version"] = "2023-06-01",
     },
     timeout = 3000,
+    -- An unreachable gateway is not an error here, plenary would raise one from its job callback.
+    on_error = function() end,
   })
   if not (ok and response and response.status == 200) then
     return models_cache.ids
@@ -101,11 +154,23 @@ end
 
 M.adapters = {
   http = {
-    openai_env = function()
+    openai = function()
+      local model = vim.env.CODECOMPANION_OPENAI_MODEL or ""
+      return require("codecompanion.adapters").extend("openai", {
+        handlers = {
+          form_parameters = wrap_form_parameters("openai", function(params)
+            -- Chat completions know low, medium and high.
+            params.reasoning_effort = effort == "max" and "high" or effort
+          end),
+        },
+        schema = model ~= "" and { model = { default = model } } or nil,
+      })
+    end,
+
+    openai_litellm = function()
       local model = vim.env.CODECOMPANION_MODEL or ""
-      warn_unset({ "CODECOMPANION_BASE_URL", "CODECOMPANION_API_KEY" })
       return require("codecompanion.adapters").extend("openai_compatible", {
-        formatted_name = "OpenAI compatible",
+        formatted_name = "OpenAI via LiteLLM",
         env = { url = env("CODECOMPANION_BASE_URL"), api_key = env("CODECOMPANION_API_KEY") },
         handlers = {
           form_parameters = wrap_form_parameters("openai_compatible", function(params)
@@ -118,11 +183,10 @@ M.adapters = {
       })
     end,
 
-    anthropic_env = function()
+    anthropic_litellm = function()
       local model = vim.env.CODECOMPANION_ANTHROPIC_MODEL or ""
-      warn_unset({ "CODECOMPANION_ANTHROPIC_BASE_URL", "CODECOMPANION_ANTHROPIC_API_KEY" })
       return require("codecompanion.adapters").extend("anthropic", {
-        formatted_name = "Anthropic Messages",
+        formatted_name = "Anthropic via LiteLLM",
         url = "${url}/v1/messages",
         env = { url = env("CODECOMPANION_ANTHROPIC_BASE_URL"), api_key = env("CODECOMPANION_ANTHROPIC_API_KEY") },
         handlers = {
@@ -157,33 +221,54 @@ M.adapters = {
   },
 }
 
-local function active_chat()
-  local chat = require("codecompanion").last_chat()
-  if not chat then
-    notify("Open a chat first", vim.log.levels.WARN)
-  end
-  return chat
-end
-
--- Select the backend for new chats and inline edits and move the open chat along.
-function M.switch_backend()
-  local config = require("codecompanion.config")
-  local current = config.interactions.chat.adapter
-  current = type(current) == "table" and current.name or current
-
-  local index = 1
-  for i, name in ipairs(M.backends) do
-    if name == current then
-      index = i % #M.backends + 1
+local function backend(name)
+  for _, candidate in ipairs(M.backends) do
+    if candidate.name == name then
+      return candidate
     end
   end
-  local name = M.backends[index]
+end
 
-  config.interactions.chat.adapter = name
-  if name ~= "claude_code" then
-    -- Agents only work in the chat buffer.
-    config.interactions.inline.adapter = name
-    config.interactions.cmd.adapter = name
+-- The backend CodeCompanion is switched on with, nil until the first pick.
+local active
+-- The last HTTP backend, which inline edits and commands stay on while an ACP agent is active.
+local last_http
+
+function M.active()
+  return active
+end
+
+-- Adapter names for the chat, the inline assistant and the command interaction.
+local function selection()
+  if not active then
+    return {}
+  end
+  local inline = backend(active).type == "http" and active or last_http or active
+  return { chat = active, inline = inline, cmd = inline }
+end
+
+-- The `interactions` of the plugin options. Nothing is selected before a backend is picked.
+function M.interactions()
+  local chosen = selection()
+  return {
+    chat = { adapter = chosen.chat },
+    inline = { adapter = chosen.inline },
+    cmd = { adapter = chosen.cmd },
+  }
+end
+
+-- Switch CodeCompanion on with `name`. The plugin is loaded on the first pick only, so nothing of it
+-- runs before that. The open chat follows the new backend.
+function M.set_backend(name)
+  active = name
+  if backend(name).type == "http" then
+    last_http = name
+  end
+
+  require("lazy").load({ plugins = { "codecompanion.nvim" } })
+  local config = require("codecompanion.config")
+  for interaction, adapter in pairs(M.interactions()) do
+    config.interactions[interaction].adapter = adapter.adapter
   end
 
   local chat = require("codecompanion").last_chat()
@@ -191,6 +276,53 @@ function M.switch_backend()
     return
   end
   notify("Backend: " .. name)
+end
+
+-- Ask which of the configured backends to switch on.
+function M.pick_backend()
+  local items = {}
+  for _, candidate in ipairs(M.backends) do
+    if candidate.ready() then
+      table.insert(items, candidate)
+    end
+  end
+  if #items == 0 then
+    notify("No backend configured, see the nvim README", vim.log.levels.WARN)
+    return
+  end
+
+  vim.ui.select(items, {
+    prompt = "AI backend",
+    format_item = function(item)
+      return (item.name == active and "* " or "  ") .. item.label
+    end,
+  }, function(choice)
+    if choice and choice.name ~= active then
+      M.set_backend(choice.name)
+    end
+  end)
+end
+
+function M.warn_off()
+  notify("Off, pick a backend first with the backend hotkey", vim.log.levels.WARN)
+end
+
+-- A hotkey action that only runs while a backend is on.
+function M.when_active(action)
+  return function()
+    if active then
+      return action()
+    end
+    M.warn_off()
+  end
+end
+
+local function active_chat()
+  local chat = require("codecompanion").last_chat()
+  if not chat then
+    notify("Open a chat first", vim.log.levels.WARN)
+  end
+  return chat
 end
 
 -- CodeCompanion's own picker: models from the endpoint for HTTP adapters, the session's
