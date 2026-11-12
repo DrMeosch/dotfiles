@@ -229,7 +229,7 @@ local function backend(name)
   end
 end
 
--- The backend CodeCompanion is switched on with, nil while it is off.
+-- The backend CodeCompanion is switched on with, nil until the first pick.
 local active
 -- The last HTTP backend, which inline edits and commands stay on while an ACP agent is active.
 local last_http
@@ -257,36 +257,12 @@ function M.interactions()
   }
 end
 
-local function close_chats()
-  local codecompanion = require("codecompanion")
-  for _, bufnr in ipairs(vim.deepcopy(_G.codecompanion_buffers or {})) do
-    local chat = codecompanion.buf_get_chat(bufnr)
-    if chat and chat.close then
-      chat:close()
-    end
-  end
-end
-
--- The Ex commands exist only while a backend is on, as before the first one is picked.
-local function set_commands(enabled)
-  for _, command in ipairs(require("codecompanion.commands")) do
-    if enabled then
-      vim.api.nvim_create_user_command(command.cmd, command.callback, command.opts)
-    else
-      pcall(vim.api.nvim_del_user_command, command.cmd)
-    end
-  end
-end
-
--- Switch CodeCompanion on with `name`, or off with nil. The plugin is loaded on first use only, so
--- nothing of it runs while it is off. Open chats follow the new backend, or are closed when off.
+-- Switch CodeCompanion on with `name`. The plugin is loaded on the first pick only, so nothing of it
+-- runs before that. The open chat follows the new backend.
 function M.set_backend(name)
   active = name
-  if backend(name) and backend(name).type == "http" then
+  if backend(name).type == "http" then
     last_http = name
-  end
-  if not name and not package.loaded["codecompanion"] then
-    return
   end
 
   require("lazy").load({ plugins = { "codecompanion.nvim" } })
@@ -294,13 +270,7 @@ function M.set_backend(name)
   for interaction, adapter in pairs(M.interactions()) do
     config.interactions[interaction].adapter = adapter.adapter
   end
-  set_commands(name ~= nil)
 
-  if not name then
-    close_chats()
-    notify("Off")
-    return
-  end
   local chat = require("codecompanion").last_chat()
   if chat and chat.adapter.name ~= name and not chat:change_adapter(name) then
     return
@@ -308,7 +278,7 @@ function M.set_backend(name)
   notify("Backend: " .. name)
 end
 
--- Ask which of the configured backends to switch on, or to switch off again.
+-- Ask which of the configured backends to switch on.
 function M.pick_backend()
   local items = {}
   for _, candidate in ipairs(M.backends) do
@@ -320,9 +290,6 @@ function M.pick_backend()
     notify("No backend is configured, see the AI assistant section of the Neovim README", vim.log.levels.WARN)
     return
   end
-  if active then
-    table.insert(items, { name = false, label = "Off" })
-  end
 
   vim.ui.select(items, {
     prompt = "AI backend",
@@ -331,7 +298,7 @@ function M.pick_backend()
     end,
   }, function(choice)
     if choice and choice.name ~= active then
-      M.set_backend(choice.name or nil)
+      M.set_backend(choice.name)
     end
   end)
 end

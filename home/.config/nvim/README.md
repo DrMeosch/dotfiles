@@ -11,11 +11,10 @@ newer; run `:checkhealth codecompanion` to check the setup.
 
 CodeCompanion is off by default. It is not even loaded, nothing is selected and nothing is contacted,
 until you pick a backend with `<leader>ab`. The picker lists only the backends that are configured on
-this machine (see below), plus `Off` while one is active. Picking one switches CodeCompanion on with it,
-the open chat as well as new chats and inline edits move along. `Off` closes the open chats and goes
-back to the initial state, the `:CodeCompanion*` commands are gone again and the other AI keymaps only
-tell you to pick a backend first. The Claude Code backend only works in the chat buffer, inline edits
-and commands stay on the last HTTP backend that was picked.
+this machine (see below). Picking one switches CodeCompanion on with it, the open chat as well as new
+chats and inline edits move along. Until then the other AI keymaps only tell you to pick a backend
+first, and restarting Neovim turns CodeCompanion off again. The Claude Code backend only works in the
+chat buffer, inline edits and commands stay on the last HTTP backend that was picked.
 
 | Backend             | Talks to                                                | Listed when                           |
 | ------------------- | ------------------------------------------------------- | ------------------------------------- |
@@ -50,7 +49,7 @@ To use a token from `claude setup-token` instead of the local login, export `CLA
 
 | Keymap       | Mode | Action                                                                                     |
 | ------------ | ---- | ------------------------------------------------------------------------------------------ |
-| `<leader>ab` | n    | Pick the backend among the configured ones, or switch CodeCompanion off                    |
+| `<leader>ab` | n    | Pick the backend among the configured ones                                                 |
 | `<leader>ac` | n, v | Toggle the chat buffer                                                                     |
 | `<leader>ai` | n, v | Start an inline prompt (`:CodeCompanion `)                                                 |
 | `<leader>aa` | n, v | Open the action palette                                                                    |
