@@ -99,6 +99,10 @@ jobs:
       - name: Portal color-scheme check
         run: ./.github/scripts/test-portal-color-scheme.sh
 
+      # With a fake pi and a fake jev-hook: what reaches the hook, and that it never blocks the session.
+      - name: Pi Jev capture extension
+        run: ./.github/scripts/test-pi-jev-capture.mjs
+
       # Upgrade from the old single-symlink Alacritty layout and the dwm checkout,
       # in a throwaway home.
       - name: Home activation (Alacritty layout migration, dwm checkout)
