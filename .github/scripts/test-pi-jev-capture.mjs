@@ -124,16 +124,35 @@ test("an editor client (rpc mode) is captured too", async () => {
 test("events in the same millisecond keep their order and their identity", async () => {
   const { bin, dir } = fakeHook();
   const on = load();
-  withHook(bin, () => {
-    on.input(typed("again"), ctx());
-    on.input(typed("again"), ctx());
-    on.agent_end(ended({ type: "text", text: "ok" }), ctx());
-  });
+  const realNow = Date.now;
+  const frozen = realNow();
+  Date.now = () => frozen;
+  try {
+    withHook(bin, () => {
+      on.input(typed("again"), ctx());
+      on.input(typed("again"), ctx());
+      on.agent_end(ended({ type: "text", text: "ok" }), ctx());
+    });
+  } finally {
+    Date.now = realNow;
+  }
   const got = (await calls(dir, 3)).map((c) => c.payload).sort((a, b) => a.ts_ms - b.ts_ms);
   assert.deepEqual(got.map((p) => p.hook_event_name), ["UserPromptSubmit", "UserPromptSubmit", "Stop"]);
   assert.equal(new Set(got.map((p) => p.ts_ms)).size, 3, "a clock that never repeats");
   assert.equal(new Set(got.map((p) => p.event_id)).size, 3, "two identical prompts are two events");
   assert.ok(got.every((p) => typeof p.event_id === "string" && p.event_id.length > 0));
+});
+
+test("the event clock never repeats and never goes back", async () => {
+  // A module instance of its own, so the stamps of the other tests do not move this clock.
+  const { stamp } = await import(`${pathToFileURL(copy).href}?clock`);
+  const t = 1_800_000_000_000;
+  const first = stamp(t);
+  const sameMs = stamp(t);
+  const clockSetBack = stamp(t - 1000);
+  assert.equal(first, t, "a stamp is the time it was taken at");
+  assert.ok(sameMs > first, "the same millisecond twice gives two stamps, in order");
+  assert.ok(clockSetBack > sameMs, "a clock set back does not take the stamps back");
 });
 
 const notTheOwner = {
