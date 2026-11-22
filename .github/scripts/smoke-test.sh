@@ -51,6 +51,8 @@ check_link ~/.config/nvim home/.config/nvim
 check_link ~/.tmux.conf home/.tmux.conf
 check_link ~/.tmux/dark.conf home/.tmux/dark.conf
 check_link ~/.tmux/light.conf home/.tmux/light.conf
+# Pi loads every file in this folder (the Jev capture and LiteLLM extensions among them).
+check_link ~/.pi/agent/extensions home/.pi/agent/extensions
 # gui.nix is not imported on WSL, so the Alacritty files are only expected where the font is.
 if [ "${EXPECT_FONT:-}" = 1 ]; then
   [ -d ~/.config/alacritty ] && [ ! -L ~/.config/alacritty ] && ok "~/.config/alacritty is a real directory" || bad "~/.config/alacritty is not a real directory"

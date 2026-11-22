@@ -11,6 +11,7 @@
 // `jev-hook` binary, and nothing unredacted is written anywhere.
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -43,13 +44,28 @@ export function send(kind, payload, env = process.env) {
   }
 }
 
+let lastMs = 0;
+
+/** Milliseconds since the epoch that never repeat or go back within this process. */
+export function stamp(now = Date.now()) {
+  lastMs = Math.max(now, lastMs + 1);
+  return lastMs;
+}
+
+// Every event carries when it happened and an id of its own, taken here and not where the detached
+// `jev-hook` finishes: those processes can end in any order, so the store orders by this stamp and
+// pairs an answer with the prompt after it however late it arrives. The id tells a replay of one
+// event from two identical prompts typed in the same second.
 function base(ctx) {
   const session = ctx.sessionManager;
+  const ms = stamp();
   return {
     session_id: session.getSessionId(),
     cwd: ctx.cwd,
     transcript_path: session.getSessionFile() ?? "",
-    ts: Math.floor(Date.now() / 1000),
+    ts: Math.floor(ms / 1000),
+    ts_ms: ms,
+    event_id: randomUUID(),
   };
 }
 

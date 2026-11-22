@@ -8,11 +8,62 @@
 // or `openai` catalog (api, thinking levels, prompt-cache and tool compat,
 // prices, context window). Claude therefore goes through the gateway's
 // /v1/messages and GPT through its /v1/responses, the way Pi talks to the
-// vendors directly, instead of both through /v1/chat/completions.
+// vendors directly, instead of both through /v1/chat/completions. The GPT-6.2
+// models, which Pi's catalog only has from 1.6.0 on, carry a copy of that
+// metadata for an older Pi.
 import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 
 const CLAUDE = ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"];
-const GPT = ["gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna", "gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-luna", "gpt-5.6-terra"];
+const GPT = ["gpt-6.2-sol", "gpt-6.2-astra", "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna", "gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-luna", "gpt-5.6-terra"];
+
+// Used only when Pi's catalog has no such model (Pi before 1.6.0): the entries of
+// Pi 1.6.0's `openai` catalog (pi-ai dist/providers/data/openai.json).
+const GPT_6_2 = {
+  api: "openai-responses",
+  reasoning: true,
+  input: ["text", "image"],
+  contextWindow: 272000,
+  maxTokens: 128000,
+  thinkingLevelMap: { off: null, minimal: null, low: "low", medium: "medium", high: "high", xhigh: "xhigh", max: "max" },
+  compat: {
+    supportsStrictMode: true,
+    supportsOpenAIGrammarTools: true,
+    supportsAdditionalTools: true,
+    supportsToolSearch: true,
+    supportsMidConvoSystemMessages: true,
+    supportsExplicitPromptCacheMode: true,
+    supportsMidConvoEffort: true,
+  },
+  inputLimits: {
+    maxRequestBytes: 536870912,
+    images: { maxPerRequest: 1500, resize: { maxWidth: 2000, maxHeight: 2000, maxBytes: 4718592, jpegQuality: 80 } },
+  },
+  type: "chat",
+};
+const NOT_IN_OLDER_PI = {
+  "openai/gpt-6.2-sol": {
+    ...GPT_6_2,
+    name: "GPT-6.2 Sol",
+    cost: {
+      input: 2,
+      output: 10,
+      cacheRead: 0.1,
+      cacheWrite: 2.5,
+      tiers: [{ inputTokensAbove: 272000, input: 4, output: 15, cacheRead: 0.2, cacheWrite: 5 }],
+    },
+  },
+  "openai/gpt-6.2-astra": {
+    ...GPT_6_2,
+    name: "GPT-6.2 Astra",
+    cost: {
+      input: 8,
+      output: 40,
+      cacheRead: 0.4,
+      cacheWrite: 10,
+      tiers: [{ inputTokensAbove: 272000, input: 16, output: 60, cacheRead: 0.8, cacheWrite: 20 }],
+    },
+  },
+};
 
 export default function (pi) {
   const configured = process.env.LITELLM_BASE_URL?.trim();
@@ -22,7 +73,7 @@ export default function (pi) {
 
   const missing = [];
   const derive = (provider, id, baseUrl, { from = id, name } = {}) => {
-    const model = getBuiltinModel(provider, from);
+    const model = getBuiltinModel(provider, from) ?? NOT_IN_OLDER_PI[`${provider}/${from}`];
     if (!model) {
       missing.push(id === from ? `${provider}/${from}` : `${id} (from ${provider}/${from})`);
       return undefined;
