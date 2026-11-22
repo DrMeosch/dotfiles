@@ -12,7 +12,7 @@
 import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 
 const CLAUDE = ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"];
-const GPT = ["gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna", "gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-luna", "gpt-5.6-terra"];
+const GPT = ["gpt-6.2-sol", "gpt-6.2-astra", "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna", "gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-luna", "gpt-5.6-terra"];
 
 export default function (pi) {
   const configured = process.env.LITELLM_BASE_URL?.trim();
