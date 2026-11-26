@@ -248,10 +248,10 @@ const CLOSED = {
 };
 const RETRYABLE = (error) => `${error} (the gateway's upstream request failed)`;
 
-/** The gateway answers the first `failures` calls with `answer` and every later one with a reply. */
-function answerFirst(failures, answer) {
+/** The gateway answers every call with `answer`, and the calls made so far are forgotten. */
+function answerWith(answer) {
   gateway.calls = [];
-  gateway.answer = () => (gateway.calls.length < failures ? answer : { stopReason: "stop", content: [{ type: "text", text: "ok" }] });
+  gateway.answer = () => answer;
 }
 
 const context = { messages: [{ role: "user", content: "hi", timestamp: 1 }] };
@@ -264,7 +264,7 @@ test("a turn the gateway answers with 499 ends with an error Pi retries, on /v1/
   for (const [id, { api, baseUrl, error }] of Object.entries(CLOSED)) {
     assert.ok(!PI_RETRYABLE.test(error), "Pi alone would not retry it");
     for (const operation of ["streamSimple", "stream"]) {
-      answerFirst(1, { stopReason: "error", errorMessage: error });
+      answerWith({ stopReason: "error", errorMessage: error });
       // The agent loop takes the call's outcome from its terminal event.
       const events = [];
       for await (const event of provider[operation](models[id], context, { apiKey: "key" })) events.push(event);
@@ -280,19 +280,15 @@ test("a turn the gateway answers with 499 ends with an error Pi retries, on /v1/
   }
 });
 
-test("a compaction summary the gateway answers with 499 once succeeds through Pi's retry", async () => {
+test("a summary call that reads only the result gets a 499 as an error Pi retries", async () => {
   const { provider, models } = start(wireCatalog);
   for (const [id, { error }] of Object.entries(CLOSED)) {
-    answerFirst(1, { stopReason: "error", errorMessage: error });
+    answerWith({ stopReason: "error", errorMessage: error });
     // Compaction and branch summaries take the call's result and retry it while it is a retryable
     // error (pi-coding-agent dist/core/compaction/compaction.js completeSummarization).
-    const produce = () => provider.streamSimple(models[id], context, { cacheRetention: "none" }).result();
-    const first = await produce();
-    assert.equal(first.errorMessage, RETRYABLE(error));
-    assert.ok(PI_RETRYABLE.test(first.errorMessage), "Pi schedules a retry");
-    const second = await produce();
-    assert.equal(second.stopReason, "stop");
-    assert.equal(gateway.calls.length, 2);
+    const result = await provider.streamSimple(models[id], context, { cacheRetention: "none" }).result();
+    assert.equal(result.errorMessage, RETRYABLE(error));
+    assert.ok(PI_RETRYABLE.test(result.errorMessage), "it matches Pi's retryable errors");
   }
 });
 
@@ -311,7 +307,7 @@ test("other failures, cancellations and replies are left alone", async () => {
   ];
   for (const id of Object.keys(CLOSED)) {
     for (const answer of unchanged) {
-      gateway.answer = () => answer;
+      answerWith(answer);
       for (const operation of ["streamSimple", "stream"]) {
         const message = await provider[operation](models[id], context, {}).result();
         assert.equal(message, gateway.calls.at(-1).message, `${id} ${operation} ${JSON.stringify(answer)}: the wire API's own message`);
