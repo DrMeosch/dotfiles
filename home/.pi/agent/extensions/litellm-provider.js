@@ -11,6 +11,9 @@
 // vendors directly, instead of both through /v1/chat/completions. The GPT-6.2
 // models, which Pi's catalog only has from 1.6.0 on, carry a copy of that
 // metadata for an older Pi.
+//
+// It also lets Pi retry a model call the gateway answers with HTTP 499 (see
+// markGatewayCloseRetryable below).
 import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 
 const CLAUDE = ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"];
@@ -65,6 +68,31 @@ const NOT_IN_OLDER_PI = {
   },
 };
 
+// A model call the gateway answered with HTTP 499 ("Client Closed Request"): a
+// hop behind Pi (the gateway or what it calls) dropped its request for this call
+// before it got an answer. Pi's own connection was still open, since this answer
+// reached it. It is a transient gateway failure, but Pi's list of retryable
+// errors has no 499, so the turn would end with the error. The status leads the
+// message: "litellm API error (499): ..." on /v1/responses, "499 ..." on
+// /v1/messages.
+const GATEWAY_CLOSED = /^(?:litellm API error \(499\):|499 )/;
+
+// Appended to such an error so that it matches "upstream request failed" in
+// Pi's retryable errors. Pi then retries the call with its usual retry settings
+// (`retry` in settings.json: attempts and backoff) and shows it as a retry.
+// Nothing else changes: when Pi itself cancels a call (Escape, or its HTTP idle
+// timeout) the call ends as aborted or with Pi's own timeout error, never with
+// an HTTP 499 answer, so this never turns a cancellation by Pi into a retry.
+const GATEWAY_CLOSED_NOTE = " (the gateway's upstream request failed)";
+
+/** The message to end the turn with instead of `message`, or undefined to keep it. */
+function markGatewayCloseRetryable(message) {
+  if (message.role !== "assistant" || message.provider !== "litellm" || message.stopReason !== "error") return undefined;
+  const error = message.errorMessage ?? "";
+  if (!GATEWAY_CLOSED.test(error) || error.endsWith(GATEWAY_CLOSED_NOTE)) return undefined;
+  return { ...message, errorMessage: error + GATEWAY_CLOSED_NOTE };
+}
+
 export default function (pi) {
   const configured = process.env.LITELLM_BASE_URL?.trim();
   if (!configured) return;
@@ -98,6 +126,12 @@ export default function (pi) {
       if (ctx.hasUI) ctx.ui.notify(warning, "warning");
     });
   }
+
+  // Pi decides whether to retry from the finished message, after this handler.
+  pi.on("message_end", (event) => {
+    const message = markGatewayCloseRetryable(event.message);
+    return message ? { message } : undefined;
+  });
 
   pi.registerProvider("litellm", {
     name: "LiteLLM",

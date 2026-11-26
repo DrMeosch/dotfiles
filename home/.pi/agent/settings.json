@@ -14,6 +14,9 @@
   "followUpMode": "all",
   "collapseChangelog": true,
   "tuiMode": "regular",
+  "compaction": {
+    "keepRecentTokens": 8000
+  },
   "packages": [
     "npm:pi-web-access@0.46.0",
     "npm:@ryan_nookpi/pi-extension-codex-fast-mode@0.2.6"
