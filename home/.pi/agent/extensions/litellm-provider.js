@@ -11,7 +11,14 @@
 // vendors directly, instead of both through /v1/chat/completions. The GPT-6.2
 // models, which Pi's catalog only has from 1.6.0 on, carry a copy of that
 // metadata for an older Pi.
-import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
+//
+// The provider streams Claude like Pi's built-in `anthropic` provider and GPT
+// like its built-in `openai` provider, with one change: a model call the gateway
+// answers with HTTP 499 ends with an error Pi retries (see retryGatewayClose
+// below). Every litellm call goes through these streams, so this covers agent
+// turns, compaction, branch summaries and bug-report summaries alike.
+import { createAssistantMessageEventStream, createProvider, envApiKeyAuth } from "@earendil-works/pi-ai";
+import { builtinProviders, getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 
 const CLAUDE = ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"];
 const GPT = ["gpt-6.2-sol", "gpt-6.2-astra", "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna", "gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-luna", "gpt-5.6-terra"];
@@ -65,6 +72,45 @@ const NOT_IN_OLDER_PI = {
   },
 };
 
+// A model call the gateway answered with HTTP 499 ("Client Closed Request"): a
+// hop behind Pi (the gateway or what it calls) dropped its request for this call
+// before it got an answer. Pi's own connection was still open, since this answer
+// reached it. It is a transient gateway failure, but Pi's list of retryable
+// errors has no 499, so the call would fail for good. The status leads the
+// message: "litellm API error (499): ..." on /v1/responses, "499 ..." on
+// /v1/messages.
+const GATEWAY_CLOSED = /^(?:litellm API error \(499\):|499 )/;
+
+// Appended to such an error so that it matches "upstream request failed" in
+// Pi's retryable errors. Pi then retries the call with its usual retry settings
+// (`retry` in settings.json: retries and backoff) and shows it as a retry.
+// Nothing else changes: when Pi itself cancels a call (Escape, or its HTTP idle
+// timeout) the call ends as aborted or with Pi's own timeout error, never with
+// an HTTP 499 answer, so this never turns a cancellation by Pi into a retry.
+const GATEWAY_CLOSED_NOTE = " (the gateway's upstream request failed)";
+
+/** `message`, or a copy of it that Pi retries when it is a 499 from the gateway. */
+function markGatewayCloseRetryable(message) {
+  if (message.stopReason !== "error" || !GATEWAY_CLOSED.test(message.errorMessage ?? "")) return message;
+  return { ...message, errorMessage: message.errorMessage + GATEWAY_CLOSED_NOTE };
+}
+
+/** The streams of a built-in Pi provider, with the final error of each call passed through markGatewayCloseRetryable. */
+function retryGatewayClose(provider) {
+  const wrap = (stream) => (model, context, options) => {
+    const inner = stream(model, context, options);
+    const outer = createAssistantMessageEventStream();
+    void (async () => {
+      for await (const event of inner) {
+        outer.push(event.type === "error" ? { ...event, error: markGatewayCloseRetryable(event.error) } : event);
+      }
+      outer.end(markGatewayCloseRetryable(await inner.result()));
+    })();
+    return outer;
+  };
+  return { stream: wrap(provider.stream), streamSimple: wrap(provider.streamSimple) };
+}
+
 export default function (pi) {
   const configured = process.env.LITELLM_BASE_URL?.trim();
   if (!configured) return;
@@ -99,10 +145,18 @@ export default function (pi) {
     });
   }
 
-  pi.registerProvider("litellm", {
-    name: "LiteLLM",
-    baseUrl: root,
-    apiKey: "$LITELLM_API_KEY",
-    models,
-  });
+  const builtin = Object.fromEntries(builtinProviders().map((provider) => [provider.id, provider]));
+  pi.registerProvider(
+    createProvider({
+      id: "litellm",
+      name: "LiteLLM",
+      baseUrl: root,
+      auth: { apiKey: envApiKeyAuth("LiteLLM API key", ["LITELLM_API_KEY"]) },
+      models,
+      api: {
+        "anthropic-messages": retryGatewayClose(builtin.anthropic),
+        "openai-responses": retryGatewayClose(builtin.openai),
+      },
+    }),
+  );
 }

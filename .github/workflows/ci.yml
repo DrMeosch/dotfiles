@@ -103,7 +103,8 @@ jobs:
       - name: Pi Jev capture extension
         run: ./.github/scripts/test-pi-jev-capture.mjs
 
-      # With a fake pi and a fake model catalog: the litellm models on a Pi with and without GPT-6.2.
+      # With a fake pi and a fake model catalog: the litellm models on a Pi with and without GPT-6.2,
+      # and that a 499 from the gateway is made retryable.
       - name: Pi LiteLLM provider extension
         run: ./.github/scripts/test-pi-litellm-provider.mjs
 
