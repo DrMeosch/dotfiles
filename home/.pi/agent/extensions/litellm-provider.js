@@ -12,8 +12,18 @@
 // models, which Pi's catalog only has from 1.6.0 on, carry a copy of that
 // metadata for an older Pi.
 //
-// It also lets Pi retry a model call the gateway answers with HTTP 499 (see
-// markGatewayCloseRetryable below).
+// The provider streams through Pi's own anthropic-messages and openai-responses
+// implementations, with one change: a model call the gateway answers with HTTP
+// 499 ends with an error Pi retries (see retryGatewayClose below). Every litellm
+// call goes through these streams, so this covers agent turns, compaction, branch
+// summaries and bug-report summaries alike.
+import {
+  anthropicMessagesApi,
+  createAssistantMessageEventStream,
+  createProvider,
+  envApiKeyAuth,
+  openAIResponsesApi,
+} from "@earendil-works/pi-ai";
 import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 
 const CLAUDE = ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"];
@@ -72,25 +82,39 @@ const NOT_IN_OLDER_PI = {
 // hop behind Pi (the gateway or what it calls) dropped its request for this call
 // before it got an answer. Pi's own connection was still open, since this answer
 // reached it. It is a transient gateway failure, but Pi's list of retryable
-// errors has no 499, so the turn would end with the error. The status leads the
+// errors has no 499, so the call would fail for good. The status leads the
 // message: "litellm API error (499): ..." on /v1/responses, "499 ..." on
 // /v1/messages.
 const GATEWAY_CLOSED = /^(?:litellm API error \(499\):|499 )/;
 
 // Appended to such an error so that it matches "upstream request failed" in
 // Pi's retryable errors. Pi then retries the call with its usual retry settings
-// (`retry` in settings.json: attempts and backoff) and shows it as a retry.
+// (`retry` in settings.json: retries and backoff) and shows it as a retry.
 // Nothing else changes: when Pi itself cancels a call (Escape, or its HTTP idle
 // timeout) the call ends as aborted or with Pi's own timeout error, never with
 // an HTTP 499 answer, so this never turns a cancellation by Pi into a retry.
 const GATEWAY_CLOSED_NOTE = " (the gateway's upstream request failed)";
 
-/** The message to end the turn with instead of `message`, or undefined to keep it. */
+/** `message`, or a copy of it that Pi retries when it is a 499 from the gateway. */
 function markGatewayCloseRetryable(message) {
-  if (message.role !== "assistant" || message.provider !== "litellm" || message.stopReason !== "error") return undefined;
-  const error = message.errorMessage ?? "";
-  if (!GATEWAY_CLOSED.test(error) || error.endsWith(GATEWAY_CLOSED_NOTE)) return undefined;
-  return { ...message, errorMessage: error + GATEWAY_CLOSED_NOTE };
+  if (message.stopReason !== "error" || !GATEWAY_CLOSED.test(message.errorMessage ?? "")) return message;
+  return { ...message, errorMessage: message.errorMessage + GATEWAY_CLOSED_NOTE };
+}
+
+/** Pi's implementation of a wire API, with the final error of each call passed through markGatewayCloseRetryable. */
+function retryGatewayClose(api) {
+  const wrap = (stream) => (model, context, options) => {
+    const inner = stream(model, context, options);
+    const outer = createAssistantMessageEventStream();
+    void (async () => {
+      for await (const event of inner) {
+        outer.push(event.type === "error" ? { ...event, error: markGatewayCloseRetryable(event.error) } : event);
+      }
+      outer.end(markGatewayCloseRetryable(await inner.result()));
+    })();
+    return outer;
+  };
+  return { ...api, stream: wrap(api.stream), streamSimple: wrap(api.streamSimple) };
 }
 
 export default function (pi) {
@@ -127,16 +151,17 @@ export default function (pi) {
     });
   }
 
-  // Pi decides whether to retry from the finished message, after this handler.
-  pi.on("message_end", (event) => {
-    const message = markGatewayCloseRetryable(event.message);
-    return message ? { message } : undefined;
-  });
-
-  pi.registerProvider("litellm", {
-    name: "LiteLLM",
-    baseUrl: root,
-    apiKey: "$LITELLM_API_KEY",
-    models,
-  });
+  pi.registerProvider(
+    createProvider({
+      id: "litellm",
+      name: "LiteLLM",
+      baseUrl: root,
+      auth: { apiKey: envApiKeyAuth("LiteLLM API key", ["LITELLM_API_KEY"]) },
+      models,
+      api: {
+        "anthropic-messages": retryGatewayClose(anthropicMessagesApi()),
+        "openai-responses": retryGatewayClose(openAIResponsesApi()),
+      },
+    }),
+  );
 }
