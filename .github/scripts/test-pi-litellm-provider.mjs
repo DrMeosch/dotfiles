@@ -25,17 +25,43 @@ writeFileSync(
   join(piAi, "package.json"),
   JSON.stringify({ name: "@earendil-works/pi-ai", type: "module", exports: { ".": "./index.js", "./providers/*": "./providers/*.js" } }),
 );
+// Pi's built-in providers stream each call through their one wire API (pi-ai dist/providers/all.js
+// builtinProviders: `anthropic` on anthropic-messages, `openai` on openai-responses, `openai-codex` on
+// openai-codex-responses, ...). Here every call is answered with what `gateway.answer` returns for it,
+// as the final message Pi's implementation would end the call with.
 writeFileSync(
   join(piAi, "providers/all.js"),
-  "export const catalog = { lookup: () => undefined };\nexport const getBuiltinModel = (provider, id) => catalog.lookup(provider, id);\n",
+  `
+import { createAssistantMessageEventStream } from "../index.js";
+export const catalog = { lookup: () => undefined };
+export const getBuiltinModel = (provider, id) => catalog.lookup(provider, id);
+export const gateway = { answer: () => ({ stopReason: "stop" }), calls: [] };
+const builtin = (id, api) => {
+  const call = (model, context, options) => {
+    const message = { role: "assistant", content: [], api: model.api, provider: model.provider, model: model.id, timestamp: 1, ...gateway.answer(model) };
+    gateway.calls.push({ api, model: model.id, baseUrl: model.baseUrl, options, message });
+    const failed = message.stopReason === "error" || message.stopReason === "aborted";
+    const stream = createAssistantMessageEventStream();
+    stream.push({ type: "start", partial: message });
+    stream.push(failed ? { type: "error", reason: message.stopReason, error: message } : { type: "done", reason: message.stopReason, message });
+    stream.end();
+    return stream;
+  };
+  return { id, stream: call, streamSimple: call };
+};
+export const builtinProviders = () => [
+  builtin("amazon-bedrock", "bedrock-converse-stream"),
+  builtin("anthropic", "anthropic-messages"),
+  builtin("openai", "openai-responses"),
+  builtin("openai-codex", "openai-codex-responses"),
+];
+`,
 );
-// The rest of pi-ai the extension uses. createProvider dispatches on `model.api` as Pi's does (pi-ai
-// dist/models.js), and the two wire APIs answer every call with what `gateway.answer` returns for it,
-// as the final message Pi's implementation would end the call with.
+// The rest of pi-ai the extension uses, all in its core index (pi-ai dist/index.js). createProvider
+// dispatches on `model.api` as Pi's does (pi-ai dist/models.js).
 writeFileSync(
   join(piAi, "index.js"),
   `
-export const gateway = { answer: () => ({ stopReason: "stop" }), calls: [] };
 export function createAssistantMessageEventStream() {
   const events = [];
   let done = false;
@@ -64,21 +90,6 @@ export function createAssistantMessageEventStream() {
     },
   };
 }
-const wireApi = (api) => () => {
-  const call = (model, context, options) => {
-    const message = { role: "assistant", content: [], api: model.api, provider: model.provider, model: model.id, timestamp: 1, ...gateway.answer(model) };
-    gateway.calls.push({ api, model: model.id, baseUrl: model.baseUrl, options, message });
-    const failed = message.stopReason === "error" || message.stopReason === "aborted";
-    const stream = createAssistantMessageEventStream();
-    stream.push({ type: "start", partial: message });
-    stream.push(failed ? { type: "error", reason: message.stopReason, error: message } : { type: "done", reason: message.stopReason, message });
-    stream.end();
-    return stream;
-  };
-  return { stream: call, streamSimple: call };
-};
-export const anthropicMessagesApi = wireApi("anthropic-messages");
-export const openAIResponsesApi = wireApi("openai-responses");
 export const envApiKeyAuth = (name, envVars) => ({ name, envVars });
 export function createProvider(input) {
   const dispatch = (operation) => (model, context, options) => input.api[model.api][operation](model, context, options);
@@ -91,8 +102,7 @@ export function createProvider(input) {
 const copy = join(work, "litellm-provider.mjs");
 copyFileSync(EXTENSION, copy);
 const ext = await import(pathToFileURL(copy).href);
-const { catalog } = await import(pathToFileURL(join(piAi, "providers/all.js")).href);
-const { gateway } = await import(pathToFileURL(join(piAi, "index.js")).href);
+const { catalog, gateway } = await import(pathToFileURL(join(piAi, "providers/all.js")).href);
 
 const GATEWAY = "https://gateway.example";
 

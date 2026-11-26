@@ -12,19 +12,13 @@
 // models, which Pi's catalog only has from 1.6.0 on, carry a copy of that
 // metadata for an older Pi.
 //
-// The provider streams through Pi's own anthropic-messages and openai-responses
-// implementations, with one change: a model call the gateway answers with HTTP
-// 499 ends with an error Pi retries (see retryGatewayClose below). Every litellm
-// call goes through these streams, so this covers agent turns, compaction, branch
-// summaries and bug-report summaries alike.
-import {
-  anthropicMessagesApi,
-  createAssistantMessageEventStream,
-  createProvider,
-  envApiKeyAuth,
-  openAIResponsesApi,
-} from "@earendil-works/pi-ai";
-import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
+// The provider streams Claude like Pi's built-in `anthropic` provider and GPT
+// like its built-in `openai` provider, with one change: a model call the gateway
+// answers with HTTP 499 ends with an error Pi retries (see retryGatewayClose
+// below). Every litellm call goes through these streams, so this covers agent
+// turns, compaction, branch summaries and bug-report summaries alike.
+import { createAssistantMessageEventStream, createProvider, envApiKeyAuth } from "@earendil-works/pi-ai";
+import { builtinProviders, getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 
 const CLAUDE = ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"];
 const GPT = ["gpt-6.2-sol", "gpt-6.2-astra", "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna", "gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-luna", "gpt-5.6-terra"];
@@ -101,8 +95,8 @@ function markGatewayCloseRetryable(message) {
   return { ...message, errorMessage: message.errorMessage + GATEWAY_CLOSED_NOTE };
 }
 
-/** Pi's implementation of a wire API, with the final error of each call passed through markGatewayCloseRetryable. */
-function retryGatewayClose(api) {
+/** The streams of a built-in Pi provider, with the final error of each call passed through markGatewayCloseRetryable. */
+function retryGatewayClose(provider) {
   const wrap = (stream) => (model, context, options) => {
     const inner = stream(model, context, options);
     const outer = createAssistantMessageEventStream();
@@ -114,7 +108,7 @@ function retryGatewayClose(api) {
     })();
     return outer;
   };
-  return { ...api, stream: wrap(api.stream), streamSimple: wrap(api.streamSimple) };
+  return { stream: wrap(provider.stream), streamSimple: wrap(provider.streamSimple) };
 }
 
 export default function (pi) {
@@ -151,6 +145,7 @@ export default function (pi) {
     });
   }
 
+  const builtin = Object.fromEntries(builtinProviders().map((provider) => [provider.id, provider]));
   pi.registerProvider(
     createProvider({
       id: "litellm",
@@ -159,8 +154,8 @@ export default function (pi) {
       auth: { apiKey: envApiKeyAuth("LiteLLM API key", ["LITELLM_API_KEY"]) },
       models,
       api: {
-        "anthropic-messages": retryGatewayClose(anthropicMessagesApi()),
-        "openai-responses": retryGatewayClose(openAIResponsesApi()),
+        "anthropic-messages": retryGatewayClose(builtin.anthropic),
+        "openai-responses": retryGatewayClose(builtin.openai),
       },
     }),
   );
